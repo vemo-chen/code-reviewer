@@ -33,8 +33,7 @@ import org.springframework.test.web.servlet.ResultActions;
     "spring.datasource.driver-class-name=org.h2.Driver",
     "spring.datasource.url=jdbc:h2:mem:webhook-project-routing-db;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
     "spring.datasource.username=sa",
-    "spring.datasource.password=",
-    "code-reviewer.gitlab.token=test-gitlab-token"
+    "spring.datasource.password="
 })
 @Sql(scripts = "/db/schema.sql")
 class GitLabWebhookProjectRoutingTest {
@@ -62,14 +61,14 @@ class GitLabWebhookProjectRoutingTest {
     }
 
     @Test
-    void shouldIgnoreWebhookWhenProjectIsNotManaged() throws Exception {
-        invokeMergeRequestWebhook(9001L);
+    void shouldRejectWebhookWhenProjectIsNotManaged() throws Exception {
+        invokeMergeRequestWebhook(9001L, status().isBadRequest());
 
         CodeReviewEventEntity event = reviewEventStoreMapper.selectOne(
             new QueryWrapper<CodeReviewEventEntity>().eq("project_id", 9001L).eq("object_id", "501"));
         Long taskCount = reviewTaskStoreMapper.selectCount(new QueryWrapper<CodeReviewTaskEntity>());
 
-        assertEquals("IGNORED", event.getStatus());
+        assertEquals(null, event);
         assertEquals(Long.valueOf(0L), taskCount);
     }
 
@@ -80,7 +79,7 @@ class GitLabWebhookProjectRoutingTest {
         invokeMergeRequestWebhook(9002L);
 
         CodeReviewEventEntity event = reviewEventStoreMapper.selectOne(
-            new QueryWrapper<CodeReviewEventEntity>().eq("project_id", 9002L).eq("object_id", "501"));
+            new QueryWrapper<CodeReviewEventEntity>().eq("object_id", "501"));
         Long taskCount = reviewTaskStoreMapper.selectCount(new QueryWrapper<CodeReviewTaskEntity>());
 
         assertEquals("IGNORED", event.getStatus());
@@ -94,7 +93,7 @@ class GitLabWebhookProjectRoutingTest {
         invokeMergeRequestWebhook(9003L);
 
         CodeReviewEventEntity event = reviewEventStoreMapper.selectOne(
-            new QueryWrapper<CodeReviewEventEntity>().eq("project_id", 9003L).eq("object_id", "501"));
+            new QueryWrapper<CodeReviewEventEntity>().eq("object_id", "501"));
         Long taskCount = reviewTaskStoreMapper.selectCount(new QueryWrapper<CodeReviewTaskEntity>());
 
         assertEquals("IGNORED", event.getStatus());
@@ -110,16 +109,21 @@ class GitLabWebhookProjectRoutingTest {
             .andExpect(jsonPath("$.data").value("accepted"));
 
         CodeReviewEventEntity event = reviewEventStoreMapper.selectOne(
-            new QueryWrapper<CodeReviewEventEntity>().eq("project_id", 9004L).eq("object_id", "501"));
+            new QueryWrapper<CodeReviewEventEntity>().eq("object_id", "501"));
         CodeReviewTaskEntity task = reviewTaskStoreMapper.selectOne(
-            new QueryWrapper<CodeReviewTaskEntity>().eq("project_id", 9004L).eq("target_id", "7"));
+            new QueryWrapper<CodeReviewTaskEntity>().eq("target_id", "7"));
 
         assertEquals("TASK_CREATED", event.getStatus());
         assertEquals("MR_REVIEW", task.getTaskType());
-        assertEquals(Long.valueOf(9004L), task.getProjectId());
+        assertEquals(event.getProjectId(), task.getProjectId());
     }
 
     private ResultActions invokeMergeRequestWebhook(Long projectId) throws Exception {
+        return invokeMergeRequestWebhook(projectId, status().isOk());
+    }
+
+    private ResultActions invokeMergeRequestWebhook(Long projectId,
+                                                    org.springframework.test.web.servlet.ResultMatcher statusMatcher) throws Exception {
         String payload = "{"
             + "\"object_kind\":\"merge_request\","
             + "\"event_type\":\"merge_request\","
@@ -140,7 +144,7 @@ class GitLabWebhookProjectRoutingTest {
             .header("X-Gitlab-Token", "test-gitlab-token")
             .contentType(MediaType.APPLICATION_JSON)
             .content(payload))
-            .andExpect(status().isOk());
+            .andExpect(statusMatcher);
     }
 
     private void insertProject(Long gitlabProjectId, boolean active, boolean aiReviewEnabled) {
@@ -150,6 +154,7 @@ class GitLabWebhookProjectRoutingTest {
         entity.setSourcePlatform("gitlab");
         entity.setGitlabProjectId(gitlabProjectId);
         entity.setGitlabProjectUrl("http://gitlab.example.com/group/project-" + gitlabProjectId);
+        entity.setGitlabWebhookToken("test-gitlab-token");
         entity.setAiReviewEnabled(aiReviewEnabled);
         entity.setGitlabNoteEnabled(true);
         entity.setWecomNotifyEnabled(false);

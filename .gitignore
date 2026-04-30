@@ -12,6 +12,7 @@ cp.txt
 Tmp*.java
 web-ui/node_modules/
 web-ui/dist/
+dist-images/
 docs/plans/
 deploy/DEPLOY.md
 src/main/resources/application-local.yml

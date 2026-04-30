@@ -1,6 +1,5 @@
 package com.vemo.codereview.notify.service;
 
-import com.vemo.codereview.common.config.WeComProperties;
 import com.vemo.codereview.notify.client.WeComWebhookClient;
 import com.vemo.codereview.notify.model.ReviewNotificationMetadata;
 import com.vemo.codereview.notify.model.WeComMarkdownPayload;
@@ -13,11 +12,9 @@ import org.springframework.util.StringUtils;
 @Service
 public class WeComNotificationService {
 
-    private final WeComProperties weComProperties;
     private final WeComWebhookClient weComWebhookClient;
 
-    public WeComNotificationService(WeComProperties weComProperties, WeComWebhookClient weComWebhookClient) {
-        this.weComProperties = weComProperties;
+    public WeComNotificationService(WeComWebhookClient weComWebhookClient) {
         this.weComWebhookClient = weComWebhookClient;
     }
 
@@ -35,10 +32,7 @@ public class WeComNotificationService {
         CodeReviewResultEntity result,
         List<CodeReviewCommentEntity> comments,
         String webhookUrlOverride) {
-        if (!weComProperties.isEnabled()) {
-            return false;
-        }
-        if (!StringUtils.hasText(resolveWebhookUrl(webhookUrlOverride))) {
+        if (!StringUtils.hasText(webhookUrlOverride)) {
             return false;
         }
         if (result == null) {
@@ -49,24 +43,12 @@ public class WeComNotificationService {
         WeComMarkdownPayload.MarkdownPayload markdown = new WeComMarkdownPayload.MarkdownPayload();
         markdown.setContent(buildReviewMarkdown(projectId, metadata, result, comments));
         message.setMarkdown(markdown);
-        weComWebhookClient.sendMarkdown(resolveWebhookUrl(webhookUrlOverride), message);
+        weComWebhookClient.sendMarkdown(webhookUrlOverride, message);
         return true;
     }
 
     public boolean notifyDailyReport(String content) {
-        if (!weComProperties.isEnabled() || !StringUtils.hasText(weComProperties.getWebhookUrl())) {
-            return false;
-        }
-        if (!StringUtils.hasText(content)) {
-            return false;
-        }
-
-        WeComMarkdownPayload message = new WeComMarkdownPayload();
-        WeComMarkdownPayload.MarkdownPayload markdown = new WeComMarkdownPayload.MarkdownPayload();
-        markdown.setContent(content);
-        message.setMarkdown(markdown);
-        weComWebhookClient.sendMarkdown(message);
-        return true;
+        return false;
     }
 
     public String previewReviewMarkdown(
@@ -206,10 +188,6 @@ public class WeComNotificationService {
             return "<font color=\"info\">" + safe(normalized) + "</font>";
         }
         return "<font color=\"comment\">" + safe(normalized) + "</font>";
-    }
-
-    private String resolveWebhookUrl(String webhookUrlOverride) {
-        return StringUtils.hasText(webhookUrlOverride) ? webhookUrlOverride : weComProperties.getWebhookUrl();
     }
 
     private String safe(String value) {

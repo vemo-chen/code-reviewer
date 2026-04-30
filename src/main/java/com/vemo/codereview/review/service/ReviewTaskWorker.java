@@ -370,7 +370,7 @@ public class ReviewTaskWorker {
 
     private String resolveGitLabApiToken(ProjectProfileEntity projectConfig) {
         if (projectConfig == null || !StringUtils.hasText(projectConfig.getGitlabWebhookToken())) {
-            return null;
+            throw new DomainException("GITLAB_TOKEN_REQUIRED", "GitLab token is required for project review");
         }
         return projectConfig.getGitlabWebhookToken().trim();
     }

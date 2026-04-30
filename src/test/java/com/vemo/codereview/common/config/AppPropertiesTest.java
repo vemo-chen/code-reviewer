@@ -20,19 +20,8 @@ import org.springframework.test.context.TestPropertySource;
     "code-reviewer.app.async.max-pool-size=6",
     "code-reviewer.app.async.queue-capacity=50",
     "code-reviewer.app.async.thread-name-prefix=test-review-",
-    "code-reviewer.gitlab.url=https://gitlab.example.com",
-    "code-reviewer.gitlab.token=gitlab-access-token",
     "code-reviewer.gitlab.connect-timeout-ms=7000",
-    "code-reviewer.gitlab.read-timeout-ms=12000",
-    "code-reviewer.llm.base-url=https://api.example.com",
-    "code-reviewer.llm.api-key=llm-key",
-    "code-reviewer.llm.model=deepseek-chat",
-    "code-reviewer.llm.timeout-ms=45000",
-    "code-reviewer.llm.max-tokens=2048",
-    "code-reviewer.llm.temperature=0.1",
-    "code-reviewer.notify.wecom.enabled=true",
-    "code-reviewer.notify.wecom.webhook-url=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
-    "code-reviewer.notify.wecom.secret=wecom-secret"
+    "code-reviewer.gitlab.read-timeout-ms=12000"
 })
 class AppPropertiesTest {
 
@@ -42,18 +31,10 @@ class AppPropertiesTest {
     @Autowired
     private GitLabProperties gitLabProperties;
 
-    @Autowired
-    private LlmProviderProperties llmProviderProperties;
-
-    @Autowired
-    private WeComProperties weComProperties;
-
     @TestConfiguration
     @EnableConfigurationProperties({
         AppProperties.class,
-        GitLabProperties.class,
-        LlmProviderProperties.class,
-        WeComProperties.class
+        GitLabProperties.class
     })
     static class TestConfig {
     }
@@ -64,15 +45,7 @@ class AppPropertiesTest {
         assertEquals(6, appProperties.getAsync().getMaxPoolSize());
         assertEquals("test-review-", appProperties.getAsync().getThreadNamePrefix());
 
-        assertEquals("https://gitlab.example.com", gitLabProperties.getUrl());
-        assertEquals("gitlab-access-token", gitLabProperties.getToken());
+        assertEquals(7000, gitLabProperties.getConnectTimeoutMs());
         assertEquals(12000, gitLabProperties.getReadTimeoutMs());
-
-        assertEquals("https://api.example.com", llmProviderProperties.getBaseUrl());
-        assertEquals("deepseek-chat", llmProviderProperties.getModel());
-        assertEquals(2048, llmProviderProperties.getMaxTokens());
-
-        assertTrue(weComProperties.isEnabled());
-        assertEquals("wecom-secret", weComProperties.getSecret());
     }
 }

@@ -32,8 +32,6 @@ class GitLabApiClientTest {
         mockWebServer.start();
 
         GitLabProperties gitLabProperties = new GitLabProperties();
-        gitLabProperties.setUrl(mockWebServer.url("").toString());
-        gitLabProperties.setToken("gitlab-access-token");
         gitLabProperties.setConnectTimeoutMs(3000);
         gitLabProperties.setReadTimeoutMs(3000);
 
@@ -51,7 +49,11 @@ class GitLabApiClientTest {
             .setHeader("Content-Type", "application/json")
             .setBody("{\"id\":1001,\"name\":\"mas-core\",\"path_with_namespace\":\"group/subgroup/mas-core\",\"web_url\":\"http://gitlab.example.com/group/subgroup/mas-core\"}"));
 
-        GitLabProjectPayload payload = gitLabApiClient.getProjectByPath("group/subgroup/mas-core");
+        GitLabProjectPayload payload = gitLabApiClient.getProjectByPath(
+            mockWebServer.url("").toString(),
+            "group/subgroup/mas-core",
+            "gitlab-access-token"
+        );
 
         RecordedRequest request = mockWebServer.takeRequest();
         assertEquals("/api/v4/projects/group%2Fsubgroup%2Fmas-core", request.getPath());
@@ -106,7 +108,12 @@ class GitLabApiClientTest {
             .setHeader("Content-Type", "application/json")
             .setBody("{\"id\":501,\"iid\":7,\"title\":\"Add review pipeline\",\"changes\":[{\"old_path\":\"src/A.java\",\"new_path\":\"src/A.java\",\"diff\":\"@@ -1 +1 @@\",\"new_file\":false,\"deleted_file\":false,\"renamed_file\":false}]}"));
 
-        GitLabChangesPayload response = gitLabApiClient.getMergeRequestChanges(1001L, "7");
+        GitLabChangesPayload response = gitLabApiClient.getMergeRequestChanges(
+            mockWebServer.url("").toString(),
+            1001L,
+            "7",
+            "gitlab-access-token"
+        );
 
         RecordedRequest request = mockWebServer.takeRequest();
         assertEquals("/api/v4/projects/1001/merge_requests/7/changes", request.getPath());
@@ -123,7 +130,12 @@ class GitLabApiClientTest {
             .setHeader("Content-Type", "application/json")
             .setBody("[{\"old_path\":\"src/A.java\",\"new_path\":\"src/A.java\",\"diff\":\"@@ -1 +1 @@\",\"new_file\":false,\"deleted_file\":false,\"renamed_file\":false}]"));
 
-        List<GitLabChangesPayload.Change> changes = gitLabApiClient.getCommitDiff(1001L, "abcdef123456");
+        List<GitLabChangesPayload.Change> changes = gitLabApiClient.getCommitDiff(
+            mockWebServer.url("").toString(),
+            1001L,
+            "abcdef123456",
+            "gitlab-access-token"
+        );
 
         RecordedRequest request = mockWebServer.takeRequest();
         assertEquals("/api/v4/projects/1001/repository/commits/abcdef123456/diff", request.getPath());
@@ -139,7 +151,13 @@ class GitLabApiClientTest {
             .setHeader("Content-Type", "application/json")
             .setBody("{\"id\":1}"));
 
-        gitLabApiClient.createMergeRequestNote(1001L, "7", new GitLabNoteRequest("review summary"));
+        gitLabApiClient.createMergeRequestNote(
+            mockWebServer.url("").toString(),
+            1001L,
+            "7",
+            new GitLabNoteRequest("review summary"),
+            "gitlab-access-token"
+        );
 
         RecordedRequest request = mockWebServer.takeRequest();
         assertEquals("/api/v4/projects/1001/merge_requests/7/notes", request.getPath());
@@ -154,7 +172,13 @@ class GitLabApiClientTest {
             .setHeader("Content-Type", "application/json")
             .setBody("{\"id\":1}"));
 
-        gitLabApiClient.createCommitNote(1001L, "abcdef123456", new GitLabCommitNoteRequest("push review summary"));
+        gitLabApiClient.createCommitNote(
+            mockWebServer.url("").toString(),
+            1001L,
+            "abcdef123456",
+            new GitLabCommitNoteRequest("push review summary"),
+            "gitlab-access-token"
+        );
 
         RecordedRequest request = mockWebServer.takeRequest();
         assertEquals("/api/v4/projects/1001/repository/commits/abcdef123456/comments", request.getPath());

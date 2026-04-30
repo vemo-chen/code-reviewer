@@ -6,9 +6,9 @@
 
 请求头：
 
-- `X-Gitlab-Token`：必须与应用配置中的 `code-reviewer.gitlab.token` 一致
+- `X-Gitlab-Token`：必须与项目配置中的 GitLab Token 一致
 
-说明：当前版本使用单个 `gitlab.token` 同时完成 webhook 校验和 GitLab API 调用。
+说明：当前版本使用项目级 GitLab Token 完成 webhook 校验和 GitLab API 调用。
 
 ## 2. 支持的事件
 

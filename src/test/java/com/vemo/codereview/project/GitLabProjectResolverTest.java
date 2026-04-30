@@ -29,8 +29,6 @@ class GitLabProjectResolverTest {
         mockWebServer.start();
 
         GitLabProperties properties = new GitLabProperties();
-        properties.setUrl("http://your-gitlab-host");
-        properties.setToken("gitlab-access-token");
         properties.setConnectTimeoutMs(3000);
         properties.setReadTimeoutMs(3000);
 
@@ -50,11 +48,13 @@ class GitLabProjectResolverTest {
             .setBody("{\"id\":888,\"name\":\"mas-core\",\"path_with_namespace\":\"group/subgroup/mas-core\",\"web_url\":\"http://gitlab.example.com/group/subgroup/mas-core\"}"));
 
         GitLabProjectPayload payload = gitLabProjectResolver.resolveProject(
-            mockWebServer.url("/group/subgroup/mas-core.git").toString()
+            mockWebServer.url("/group/subgroup/mas-core.git").toString(),
+            "gitlab-access-token"
         );
 
         RecordedRequest request = mockWebServer.takeRequest();
         assertEquals("/api/v4/projects/group%2Fsubgroup%2Fmas-core", request.getPath());
+        assertEquals("gitlab-access-token", request.getHeader("PRIVATE-TOKEN"));
         assertEquals(Long.valueOf(888L), payload.getId());
         assertEquals("group/subgroup/mas-core", payload.getPathWithNamespace());
     }

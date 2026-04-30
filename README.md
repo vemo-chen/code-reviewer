@@ -26,7 +26,7 @@ Code Reviewer 是一个面向 GitLab 工作流的 AI 代码审查工具。它可
 
 - Backend: Java 8, Spring Boot, MyBatis-Plus
 - Frontend: Vue 3, Vite, TypeScript, Element Plus
-- Runtime: MySQL, Redis, Docker
+- Runtime: MySQL, Docker
 - AI Provider: OpenAI-compatible chat completion APIs
 
 ### 快速开始
@@ -52,18 +52,17 @@ npm install
 npm run dev
 ```
 
-默认情况下，你需要准备可用的数据库、GitLab 访问令牌和大模型 API Key。建议通过环境变量或本地配置文件管理这些信息，不要将真实密钥提交到仓库。
+默认情况下，你需要准备可用的数据库。GitLab Token、大模型 API Key 和企业微信 Webhook 在 Web 管理界面中按项目或模型显式配置。
 
 ### 配置说明
 
-项目支持通过配置文件或环境变量设置运行参数，例如：
+项目支持通过配置文件或环境变量设置基础运行参数，例如：
 
-- GitLab 服务地址和访问令牌
-- 大模型服务地址、模型名称和 API Key
 - 数据库连接信息
-- 通知和结果回写开关
+- GitLab 请求超时时间
+- 审查规则文件路径
 
-仓库中只应保留示例配置。真实环境的密码、Token、Webhook URL、证书和私钥应放在本地配置、部署平台密钥或 CI/CD Secret 中。
+项目级敏感信息在管理界面中维护：新建项目时填写 GitLab URL 和 Token；启用 AI 审查时选择模型；启用企业微信通知时填写项目级 Webhook。仓库中只应保留示例配置，真实密码、Token、Webhook URL、证书和私钥不要提交。
 
 ### 文档
 
@@ -107,7 +106,7 @@ It is suitable for teams that want to bring AI into their daily review process, 
 
 - Backend: Java 8, Spring Boot, MyBatis-Plus
 - Frontend: Vue 3, Vite, TypeScript, Element Plus
-- Runtime: MySQL, Redis, Docker
+- Runtime: MySQL, Docker
 - AI Provider: OpenAI-compatible chat completion APIs
 
 ### Quick Start
@@ -133,18 +132,17 @@ npm install
 npm run dev
 ```
 
-You will need a database, a GitLab access token, and an LLM API key. Use environment variables or local configuration files for real credentials. Do not commit secrets to the repository.
+You will need a database. GitLab tokens, LLM API keys, and WeCom webhook URLs are configured explicitly in the web console per project or model.
 
 ### Configuration
 
-The application can be configured with files or environment variables, including:
+The application can be configured with files or environment variables for basic runtime settings, including:
 
-- GitLab URL and access token
-- LLM base URL, model name, and API key
 - Database connection settings
-- Notification and comment-back options
+- GitLab request timeouts
+- Review rule file path
 
-Only example configuration should be committed. Real passwords, tokens, webhook URLs, certificates, and private keys should be stored locally, in deployment secrets, or in CI/CD secret stores.
+Project-level secrets are maintained in the web console: GitLab URL and token when creating a project, model configuration for AI review, and a project-level WeCom webhook when notification is enabled. Only example configuration should be committed. Real passwords, tokens, webhook URLs, certificates, and private keys should not be committed.
 
 ### Documentation
 

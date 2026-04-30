@@ -1,7 +1,6 @@
 package com.vemo.codereview.webhook.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.vemo.codereview.common.config.GitLabProperties;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.common.service.IdempotencyService;
 import com.vemo.codereview.dashboard.entity.ProjectProfileEntity;
@@ -32,7 +31,6 @@ import org.springframework.util.StringUtils;
 @Service
 public class GitLabWebhookHandlerService {
 
-    private final GitLabProperties gitLabProperties;
     private final GitLabWebhookEventNormalizer gitLabWebhookEventNormalizer;
     private final IdempotencyService idempotencyService;
     private final ReviewEventStoreMapper codeReviewEventMapper;
@@ -42,7 +40,6 @@ public class GitLabWebhookHandlerService {
     private final ProjectConfigService projectConfigService;
 
     public GitLabWebhookHandlerService(
-        GitLabProperties gitLabProperties,
         GitLabWebhookEventNormalizer gitLabWebhookEventNormalizer,
         IdempotencyService idempotencyService,
         ReviewEventStoreMapper codeReviewEventMapper,
@@ -50,7 +47,6 @@ public class GitLabWebhookHandlerService {
         ReviewTaskDispatcher reviewTaskDispatcher,
         ReviewStateService reviewStateService,
         ProjectConfigService projectConfigService) {
-        this.gitLabProperties = gitLabProperties;
         this.gitLabWebhookEventNormalizer = gitLabWebhookEventNormalizer;
         this.idempotencyService = idempotencyService;
         this.codeReviewEventMapper = codeReviewEventMapper;
@@ -238,7 +234,7 @@ public class GitLabWebhookHandlerService {
     private String resolveExpectedToken(GitLabWebhookPayload payload) {
         Long gitLabProjectId = payload == null || payload.getProject() == null ? null : payload.getProject().getId();
         if (gitLabProjectId == null) {
-            return StringUtils.hasText(gitLabProperties.getToken()) ? gitLabProperties.getToken().trim() : null;
+            return null;
         }
         ProjectProfileEntity project = projectConfigService.findByGitLabProjectId(gitLabProjectId);
         if (project == null) {
@@ -247,7 +243,7 @@ public class GitLabWebhookHandlerService {
         if (StringUtils.hasText(project.getGitlabWebhookToken())) {
             return project.getGitlabWebhookToken().trim();
         }
-        return StringUtils.hasText(gitLabProperties.getToken()) ? gitLabProperties.getToken().trim() : null;
+        return null;
     }
 
     private boolean shouldIgnorePushMergeCommit(StandardReviewEvent event) {

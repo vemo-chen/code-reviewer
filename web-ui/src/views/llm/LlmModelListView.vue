@@ -332,6 +332,9 @@ interface LlmModelForm {
 }
 
 const authStore = useAuthStore();
+const DEFAULT_TIMEOUT_MS = 180000;
+const DEFAULT_MAX_TOKENS = 8192;
+const DEFAULT_TEMPERATURE = 0.1;
 const loading = ref(false);
 const saving = ref(false);
 const drawerLoading = ref(false);
@@ -402,9 +405,9 @@ const form = reactive<LlmModelForm>({
   enabled: true,
   scopeType: "GLOBAL",
   maintainerProjectId: null,
-  timeoutMs: 60000,
-  maxTokens: 2000,
-  temperature: 0.2,
+  timeoutMs: DEFAULT_TIMEOUT_MS,
+  maxTokens: DEFAULT_MAX_TOKENS,
+  temperature: DEFAULT_TEMPERATURE,
   remark: "",
   projectIds: []
 });
@@ -480,9 +483,9 @@ const resetForm = () => {
   form.enabled = true;
   form.scopeType = "GLOBAL";
   form.maintainerProjectId = null;
-  form.timeoutMs = 60000;
-  form.maxTokens = 2000;
-  form.temperature = 0.2;
+  form.timeoutMs = DEFAULT_TIMEOUT_MS;
+  form.maxTokens = DEFAULT_MAX_TOKENS;
+  form.temperature = DEFAULT_TEMPERATURE;
   form.remark = "";
   form.projectIds = [];
 };

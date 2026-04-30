@@ -45,14 +45,6 @@ public class GitLabApiClient {
         this.okHttpClient = okHttpClient;
     }
 
-    public GitLabProjectPayload getProjectByPath(String projectPath) {
-        return getProjectByPath(projectPath, gitLabProperties.getToken());
-    }
-
-    public GitLabProjectPayload getProjectByPath(String projectPath, String token) {
-        return getProjectByPath(null, projectPath, token);
-    }
-
     public GitLabProjectPayload getProjectByPath(String baseUrl, String projectPath, String token) {
         Request request = new Request.Builder()
             .url(resolveBaseUrl(baseUrl) + "/api/v4/projects/" + encodeProjectPath(projectPath))
@@ -73,14 +65,6 @@ public class GitLabApiClient {
         return Arrays.asList(response);
     }
 
-    public GitLabChangesPayload getMergeRequestChanges(Long projectId, String mergeRequestIid) {
-        return getMergeRequestChanges(projectId, mergeRequestIid, null);
-    }
-
-    public GitLabChangesPayload getMergeRequestChanges(Long projectId, String mergeRequestIid, String token) {
-        return getMergeRequestChanges(null, projectId, mergeRequestIid, token);
-    }
-
     public GitLabChangesPayload getMergeRequestChanges(String baseUrl, Long projectId, String mergeRequestIid, String token) {
         String url = resolveBaseUrl(baseUrl)
             + "/api/v4/projects/" + projectId
@@ -93,14 +77,6 @@ public class GitLabApiClient {
         return execute(request, GitLabChangesPayload.class);
     }
 
-    public List<GitLabChangesPayload.Change> getCommitDiff(Long projectId, String commitSha) {
-        return getCommitDiff(projectId, commitSha, null);
-    }
-
-    public List<GitLabChangesPayload.Change> getCommitDiff(Long projectId, String commitSha, String token) {
-        return getCommitDiff(null, projectId, commitSha, token);
-    }
-
     public List<GitLabChangesPayload.Change> getCommitDiff(String baseUrl, Long projectId, String commitSha, String token) {
         Request request = new Request.Builder()
             .url(resolveBaseUrl(baseUrl)
@@ -111,14 +87,6 @@ public class GitLabApiClient {
             .build();
         GitLabChangesPayload.Change[] response = execute(request, GitLabChangesPayload.Change[].class);
         return Arrays.asList(response);
-    }
-
-    public void createMergeRequestNote(Long projectId, String mergeRequestIid, GitLabNoteRequest noteRequest) {
-        createMergeRequestNote(projectId, mergeRequestIid, noteRequest, null);
-    }
-
-    public void createMergeRequestNote(Long projectId, String mergeRequestIid, GitLabNoteRequest noteRequest, String token) {
-        createMergeRequestNote(null, projectId, mergeRequestIid, noteRequest, token);
     }
 
     public void createMergeRequestNote(String baseUrl, Long projectId, String mergeRequestIid,
@@ -135,14 +103,6 @@ public class GitLabApiClient {
         } catch (IOException ex) {
             throw new DomainException("GITLAB_REQUEST_BUILD_ERROR", "Failed to create GitLab note request");
         }
-    }
-
-    public void createCommitNote(Long projectId, String commitSha, GitLabCommitNoteRequest noteRequest) {
-        createCommitNote(projectId, commitSha, noteRequest, null);
-    }
-
-    public void createCommitNote(Long projectId, String commitSha, GitLabCommitNoteRequest noteRequest, String token) {
-        createCommitNote(null, projectId, commitSha, noteRequest, token);
     }
 
     public void createCommitNote(String baseUrl, Long projectId, String commitSha,
@@ -205,18 +165,11 @@ public class GitLabApiClient {
         }
     }
 
-    private String getBaseUrl() {
-        if (!StringUtils.hasText(gitLabProperties.getUrl())) {
-            throw new DomainException("GITLAB_BASE_URL_MISSING", "GitLab base URL is missing");
-        }
-        return normalizeBaseUrl(gitLabProperties.getUrl());
-    }
-
     private String resolveBaseUrl(String baseUrl) {
-        if (StringUtils.hasText(baseUrl)) {
-            return normalizeBaseUrl(baseUrl);
+        if (!StringUtils.hasText(baseUrl)) {
+            throw new DomainException("GITLAB_BASE_URL_MISSING", "GitLab base URL is required");
         }
-        return getBaseUrl();
+        return normalizeBaseUrl(baseUrl);
     }
 
     private String normalizeBaseUrl(String baseUrl) {
@@ -236,11 +189,10 @@ public class GitLabApiClient {
     }
 
     private String resolveApiToken(String token) {
-        String resolved = StringUtils.hasText(token) ? token.trim() : gitLabProperties.getToken();
-        if (!StringUtils.hasText(resolved)) {
+        if (!StringUtils.hasText(token)) {
             throw new DomainException("GITLAB_TOKEN_REQUIRED", "GitLab token is required");
         }
-        return resolved;
+        return token.trim();
     }
 
     private static OkHttpClient buildClient(GitLabProperties gitLabProperties) {

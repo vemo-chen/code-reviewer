@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.vemo.codereview.common.config.WeComProperties;
 import com.vemo.codereview.notify.client.WeComWebhookClient;
 import com.vemo.codereview.notify.model.ReviewNotificationMetadata;
 import com.vemo.codereview.notify.service.WeComNotificationService;
@@ -32,12 +31,8 @@ class WeComNotificationServiceTest {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
 
-        WeComProperties properties = new WeComProperties();
-        properties.setEnabled(true);
-        properties.setWebhookUrl(mockWebServer.url("/cgi-bin/webhook/send?key=test-key").toString());
-
-        WeComWebhookClient webhookClient = new WeComWebhookClient(properties, new ObjectMapper(), new OkHttpClient());
-        weComNotificationService = new WeComNotificationService(properties, webhookClient);
+        WeComWebhookClient webhookClient = new WeComWebhookClient(new ObjectMapper(), new OkHttpClient());
+        weComNotificationService = new WeComNotificationService(webhookClient);
     }
 
     @AfterEach
@@ -77,7 +72,13 @@ class WeComNotificationServiceTest {
         metadata.setSubmitBranch("feature/review-worker");
         metadata.setSubmitTime("2026-04-07 18:00:00");
 
-        boolean notified = weComNotificationService.notifyReviewResult(1001L, metadata, result, Arrays.asList(comment));
+        boolean notified = weComNotificationService.notifyReviewResult(
+            1001L,
+            metadata,
+            result,
+            Arrays.asList(comment),
+            mockWebServer.url("/cgi-bin/webhook/send?key=test-key").toString()
+        );
 
         RecordedRequest request = mockWebServer.takeRequest();
         JsonNode payload = new ObjectMapper().readTree(request.getBody().readUtf8());

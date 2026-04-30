@@ -40,8 +40,8 @@ services:
       TZ: Asia/Shanghai
       JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Shanghai
     volumes:
-      - /home/hc/code-reviewer/config:/app/config
-      - /home/hc/code-reviewer/logs:/app/logs
+      - ./config:/app/config
+      - ./logs:/app/logs
 
   web:
     image: *web_image
@@ -54,7 +54,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - /home/hc/code-reviewer/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - code-reviewer-net
 

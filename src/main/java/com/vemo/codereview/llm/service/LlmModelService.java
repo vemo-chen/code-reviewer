@@ -37,6 +37,10 @@ import org.springframework.util.StringUtils;
 @Service
 public class LlmModelService {
 
+    private static final int DEFAULT_TIMEOUT_MS = 180000;
+    private static final int DEFAULT_MAX_TOKENS = 8192;
+    private static final java.math.BigDecimal DEFAULT_TEMPERATURE = new java.math.BigDecimal("0.1");
+
     private final LlmProviderConfigMapper llmProviderConfigMapper;
     private final LlmModelProjectRelMapper llmModelProjectRelMapper;
     private final ProjectProfileMapper projectProfileMapper;
@@ -391,9 +395,9 @@ public class LlmModelService {
         entity.setEnabled(request.getEnabled() == null ? entity.getEnabled() : request.getEnabled());
         entity.setScopeType(normalizeScopeType(request.getScopeType()));
         entity.setMaintainerProjectId("PROJECT".equalsIgnoreCase(entity.getScopeType()) ? request.getMaintainerProjectId() : null);
-        entity.setTimeoutMs(request.getTimeoutMs());
-        entity.setMaxTokens(request.getMaxTokens());
-        entity.setTemperature(request.getTemperature());
+        entity.setTimeoutMs(request.getTimeoutMs() == null ? DEFAULT_TIMEOUT_MS : request.getTimeoutMs());
+        entity.setMaxTokens(request.getMaxTokens() == null ? DEFAULT_MAX_TOKENS : request.getMaxTokens());
+        entity.setTemperature(request.getTemperature() == null ? DEFAULT_TEMPERATURE : request.getTemperature());
         entity.setRemark(StringUtils.hasText(request.getRemark()) ? request.getRemark().trim() : null);
     }
 

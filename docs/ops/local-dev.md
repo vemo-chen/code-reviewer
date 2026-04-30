@@ -1,70 +1,43 @@
-# 鏈湴杩愯璇存槑
+# Local Development
 
-## 1. 鐜瑕佹眰
+## Requirements
 
 - JDK 1.8
-- Maven 3.9.9
-- MySQL 5.7.44
+- Maven 3.9+
+- MySQL 5.7+ or 8.x
+- Node.js 18+
 
-褰撳墠椤圭洰榛樿浣跨敤 MySQL锛屼笉渚濊禆 Redis銆?
-## 2. 鏈湴缂栬瘧
+## Backend
 
-```powershell
-$env:JAVA_HOME='C:\Program Files\Java\jdk-1.8'
-$env:Path='C:\Program Files\Java\jdk-1.8\bin;' + $env:Path
-mvn -q -DskipTests compile
-```
-
-## 3. 杩愯娴嬭瘯
+Start the backend from the repository root:
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Java\jdk-1.8'
-$env:Path='C:\Program Files\Java\jdk-1.8\bin;' + $env:Path
-mvn -q test
-```
-
-## 4. 鍚姩搴旂敤
-
-鍙互閫氳繃 IDEA 鍚姩 `com.vemo.codereview.CodeReviewerApplication`锛屼篃鍙互浣跨敤 Maven锛?
-```powershell
-$env:JAVA_HOME='C:\Program Files\Java\jdk-1.8'
-$env:Path='C:\Program Files\Java\jdk-1.8\bin;' + $env:Path
 mvn spring-boot:run
 ```
 
-## 5. 鍏抽敭閰嶇疆
+The backend reads infrastructure settings such as database connection values from `application.yml`, environment variables, or a local ignored config file.
 
-### 5.1 GitLab
+Project-specific credentials are configured in the web console:
 
-```yaml
-code-reviewer:
-  gitlab:
-    url: http://your-gitlab-host
-    token: your-gitlab-access-token
+- GitLab project URL and token are required when creating a project.
+- AI review requires selecting a model from the model configuration page.
+- WeCom notification requires a project-level webhook URL when the notification switch is enabled.
+
+## Frontend
+
+```powershell
+cd web-ui
+npm install
+npm run dev
 ```
 
-璇存槑锛氬綋鍓?`token` 鍚屾椂鐢ㄤ簬锛?
-- GitLab webhook `X-Gitlab-Token`
-- GitLab API `PRIVATE-TOKEN`
+## Configuration Notes
 
-### 5.2 澶фā鍨?
-褰撳墠璧?OpenAI-compatible 鍗忚锛屼緥濡?DeepSeek锛?
-```yaml
-code-reviewer:
-  llm:
-    base-url: https://api.deepseek.com/v1
-    api-key: your-api-key
-    model: deepseek-chat
-```
+Do not commit real credentials. Keep local secrets in ignored files such as:
 
-### 5.3 浼佷笟寰俊
+- `src/main/resources/application-local.yml`
+- environment variables
+- deployment platform secrets
+- CI/CD secret stores
 
-```yaml
-code-reviewer:
-  notify:
-    wecom:
-      enabled: true
-      webhook-url: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
-```
-
-椤圭洰绾т紒涓氬井淇?webhook 鍙湪椤圭洰绠＄悊鎺ュ彛涓鐩栧叏灞€閰嶇疆銆?
+The repository only keeps safe example configuration.

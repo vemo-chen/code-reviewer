@@ -31,8 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
     "spring.datasource.driver-class-name=org.h2.Driver",
     "spring.datasource.url=jdbc:h2:mem:webhook-idempotency-db;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
     "spring.datasource.username=sa",
-    "spring.datasource.password=",
-    "code-reviewer.gitlab.token=test-gitlab-token"
+    "spring.datasource.password="
 })
 @Sql(scripts = "/db/schema.sql")
 class GitLabWebhookIdempotencyTest {
@@ -63,6 +62,7 @@ class GitLabWebhookIdempotencyTest {
         entity.setSourcePlatform("gitlab");
         entity.setGitlabProjectId(1001L);
         entity.setGitlabProjectUrl("http://gitlab.example.com/group/code-reviewer");
+        entity.setGitlabWebhookToken("test-gitlab-token");
         entity.setAiReviewEnabled(true);
         entity.setGitlabNoteEnabled(true);
         entity.setWecomNotifyEnabled(false);

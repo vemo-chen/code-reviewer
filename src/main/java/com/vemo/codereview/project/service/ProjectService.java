@@ -205,8 +205,14 @@ public class ProjectService {
         if (!StringUtils.hasText(request.getGitlabProjectUrl())) {
             throw new DomainException("PROJECT_URL_REQUIRED", "GitLab project URL is required");
         }
+        if (!StringUtils.hasText(request.getGitlabWebhookToken())) {
+            throw new DomainException("GITLAB_TOKEN_REQUIRED", "GitLab token is required");
+        }
         if (Boolean.TRUE.equals(request.getAiReviewEnabled()) && request.getLlmModelId() == null) {
             throw new DomainException("PROJECT_LLM_MODEL_REQUIRED", "AI review enabled project must select a model");
+        }
+        if (Boolean.TRUE.equals(request.getWecomNotifyEnabled()) && !StringUtils.hasText(request.getWecomWebhookUrl())) {
+            throw new DomainException("WECOM_WEBHOOK_REQUIRED", "WeCom webhook URL is required when notification is enabled");
         }
         if (request.getTemplateId() != null && projectTemplateMapper.selectById(request.getTemplateId()) == null) {
             throw new DomainException("PROJECT_TEMPLATE_NOT_FOUND", "Project template not found");
@@ -226,8 +232,8 @@ public class ProjectService {
         entity.setAiReviewEnabled(request.getAiReviewEnabled() == null ? Boolean.TRUE : request.getAiReviewEnabled());
         entity.setGitlabNoteEnabled(request.getGitlabNoteEnabled() == null ? Boolean.TRUE : request.getGitlabNoteEnabled());
         entity.setWecomNotifyEnabled(request.getWecomNotifyEnabled() == null ? Boolean.FALSE : request.getWecomNotifyEnabled());
-        entity.setWecomWebhookUrl(request.getWecomWebhookUrl());
-        entity.setPromptContent(request.getPromptContent());
+        entity.setWecomWebhookUrl(normalizeText(request.getWecomWebhookUrl()));
+        entity.setPromptContent(normalizeText(request.getPromptContent()));
         entity.setActive(request.getActive() == null ? Boolean.TRUE : request.getActive());
     }
 

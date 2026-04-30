@@ -131,7 +131,7 @@
         <el-form ref="projectFormRef" :model="projectForm" :rules="projectRules" :disabled="projectReadOnly" label-position="top" class="project-form">
           <el-form-item :label="texts.projectName" prop="projectName"><el-input v-model="projectForm.projectName" :placeholder="texts.projectNamePlaceholder" /></el-form-item>
           <el-form-item label="GitLab URL" prop="gitlabProjectUrl"><el-input v-model="projectForm.gitlabProjectUrl" :placeholder="texts.gitlabRealUrlPlaceholder" /></el-form-item>
-          <el-form-item :label="texts.webhookToken">
+          <el-form-item :label="texts.webhookToken" prop="gitlabWebhookToken">
             <div class="token-input-row">
               <el-input v-model="projectForm.gitlabWebhookToken" show-password :placeholder="texts.webhookTokenPlaceholder" clearable />
               <el-tooltip :content="texts.testConnection" placement="top">
@@ -358,7 +358,7 @@ const texts = {
   gitlabNoteDesc: "\u5c06\u5ba1\u67e5\u7ed3\u679c\u81ea\u52a8\u56de\u5199\u5230 GitLab \u5907\u6ce8\u4e2d\u3002", wecomNotifyDesc: "\u6839\u636e\u9879\u76ee\u914d\u7f6e\u5411\u4f01\u4e1a\u5fae\u4fe1\u63a8\u9001\u5ba1\u67e5\u7ed3\u679c\u3002", wecomWebhook: "\u4f01\u5fae Webhook", wecomWebhookPlaceholder: "\u8bf7\u8f93\u5165\u4f01\u4e1a\u5fae\u4fe1 Webhook",
   activeDesc: "\u5173\u95ed\u540e\u9879\u76ee\u5c06\u4e0d\u518d\u53c2\u4e0e\u81ea\u52a8\u5ba1\u67e5\u6d41\u7a0b\u3002", projectPrompt: "\u9879\u76ee Prompt", projectPromptPlaceholder: "\u586b\u5199\u9879\u76ee\u7ea7\u8865\u5145\u89c4\u8303\uff0c\u4e3a\u7a7a\u65f6\u53ea\u4f7f\u7528\u516c\u5171\u89c4\u5219",
   cancel: "\u53d6\u6d88", save: "\u4fdd\u5b58", validateProjectName: "\u8bf7\u8f93\u5165\u9879\u76ee\u540d\u79f0", validateGitlabUrl: "\u8bf7\u8f93\u5165 GitLab \u9879\u76ee URL", warningOwner: "\u8bf7\u9009\u62e9\u9879\u76ee Owner", warningGitlabUrl: "\u8bf7\u5148\u586b\u5199 GitLab URL", warningGitlabToken: "\u8bf7\u5148\u586b\u5199 Webhook Token",
-  warningReviewModel: "\u5f00\u542f AI \u5ba1\u67e5\u65f6\u5fc5\u987b\u9009\u62e9\u5ba1\u67e5\u6a21\u578b",
+  warningReviewModel: "\u5f00\u542f AI \u5ba1\u67e5\u65f6\u5fc5\u987b\u9009\u62e9\u5ba1\u67e5\u6a21\u578b", warningWecomWebhook: "\u5f00\u542f\u4f01\u5fae\u901a\u77e5\u65f6\u5fc5\u987b\u586b\u5199\u4f01\u5fae Webhook",
   gitlabSuccessPrefix: "GitLab \u8fde\u63a5\u6210\u529f\uff1a", gitlabFail: "\u6d4b\u8bd5 GitLab \u5931\u8d25", loadProjectConfigFail: "\u52a0\u8f7d\u9879\u76ee\u914d\u7f6e\u6570\u636e\u5931\u8d25", loadProjectDetailFail: "\u52a0\u8f7d\u9879\u76ee\u8be6\u60c5\u5931\u8d25",
   createSuccess: "\u9879\u76ee\u521b\u5efa\u6210\u529f", updateSuccess: "\u9879\u76ee\u66f4\u65b0\u6210\u529f", createFail: "\u9879\u76ee\u521b\u5efa\u5931\u8d25", updateFail: "\u9879\u76ee\u66f4\u65b0\u5931\u8d25", refreshSuccess: "GitLab \u9879\u76ee\u6570\u636e\u5df2\u5237\u65b0", refreshFail: "\u5237\u65b0 GitLab \u9879\u76ee\u5931\u8d25",
   deleteConfirmTitle: "\u5220\u9664\u786e\u8ba4", deleteConfirmPrefix: "\u786e\u8ba4\u5220\u9664\u9879\u76ee\u201c", deleteConfirmSuffix: "\u201d\u5417\uff1f", confirm: "\u786e\u8ba4", deleteSuccess: "\u9879\u76ee\u5220\u9664\u6210\u529f", deleteFail: "\u9879\u76ee\u5220\u9664\u5931\u8d25", loadProjectListFail: "\u52a0\u8f7d\u9879\u76ee\u5217\u8868\u5931\u8d25",
@@ -381,7 +381,7 @@ const templateQueryForm = reactive({ templateName: "" });
 const activeQuery = reactive({ projectName: "", gitlabProjectUrl: "", aiReviewEnabled: undefined as boolean | undefined, wecomNotifyEnabled: undefined as boolean | undefined });
 const activeTemplateQuery = reactive({ templateName: "" });
 const projectForm = reactive<ProjectForm>({ projectName: "", sourcePlatform: "gitlab", gitlabProjectUrl: "", gitlabWebhookToken: "", reviewBranches: [], ownerUserId: null, templateId: null, supportedFileExtensions: "", memberUserIds: [], llmModelId: null, aiReviewEnabled: true, gitlabNoteEnabled: true, wecomNotifyEnabled: false, wecomWebhookUrl: "", promptContent: "", active: true });
-const projectRules: FormRules<ProjectForm> = { projectName: [{ required: true, message: texts.validateProjectName, trigger: "blur" }], gitlabProjectUrl: [{ required: true, message: texts.validateGitlabUrl, trigger: "blur" }] };
+const projectRules: FormRules<ProjectForm> = { projectName: [{ required: true, message: texts.validateProjectName, trigger: "blur" }], gitlabProjectUrl: [{ required: true, message: texts.validateGitlabUrl, trigger: "blur" }], gitlabWebhookToken: [{ required: true, message: texts.warningGitlabToken, trigger: "blur" }] };
 const templateForm = reactive<ProjectTemplateForm>({ templateName: "", templateDesc: "", fileExtensions: "", baseReviewPrompt: "" });
 const templateRules: FormRules<ProjectTemplateForm> = { templateName: [{ required: true, message: texts.validateTemplateName, trigger: "blur" }] };
 const currentUserId = computed(() => authStore.user?.userId ?? null); const showOwnerField = computed(() => authStore.isAdmin || dialogMode.value !== "create"); const showCreatorHint = computed(() => dialogMode.value === "create" && !authStore.isAdmin);
@@ -529,6 +529,7 @@ const submitProject = async () => {
     if (!valid) return;
     if ((dialogMode.value === "edit" || authStore.isAdmin) && !projectForm.ownerUserId) { ElMessage.warning(texts.warningOwner); return; }
     if (projectForm.aiReviewEnabled && !projectForm.llmModelId) { ElMessage.warning(texts.warningReviewModel); return; }
+    if (projectForm.wecomNotifyEnabled && !normalizeText(projectForm.wecomWebhookUrl)) { ElMessage.warning(texts.warningWecomWebhook); return; }
     saving.value = true;
     try {
       if (dialogMode.value === "create") { await createProject(buildPayload()); ElMessage.success(texts.createSuccess); }

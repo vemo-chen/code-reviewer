@@ -18,11 +18,6 @@ public class GitLabProjectResolver {
         this.gitLabApiClient = gitLabApiClient;
     }
 
-    public GitLabProjectPayload resolveProject(String gitlabProjectUrl) {
-        String projectPath = extractProjectPath(gitlabProjectUrl);
-        return gitLabApiClient.getProjectByPath(extractGitLabBaseUrl(gitlabProjectUrl), projectPath, null);
-    }
-
     public GitLabProjectPayload resolveProject(String gitlabProjectUrl, String token) {
         String projectPath = extractProjectPath(gitlabProjectUrl);
         return gitLabApiClient.getProjectByPath(extractGitLabBaseUrl(gitlabProjectUrl), projectPath, token);

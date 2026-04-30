@@ -34,8 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
     "spring.datasource.driver-class-name=org.h2.Driver",
     "spring.datasource.url=jdbc:h2:mem:webhookdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
     "spring.datasource.username=sa",
-    "spring.datasource.password=",
-    "code-reviewer.gitlab.token=test-gitlab-token"
+    "spring.datasource.password="
 })
 @Sql(scripts = "/db/schema.sql")
 class GitLabWebhookControllerTest {
@@ -290,6 +289,7 @@ class GitLabWebhookControllerTest {
         entity.setSourcePlatform("gitlab");
         entity.setGitlabProjectId(gitlabProjectId);
         entity.setGitlabProjectUrl("http://gitlab.example.com/group/project-" + gitlabProjectId);
+        entity.setGitlabWebhookToken("test-gitlab-token");
         entity.setReviewBranches(reviewBranches);
         entity.setAiReviewEnabled(aiReviewEnabled);
         entity.setGitlabNoteEnabled(true);

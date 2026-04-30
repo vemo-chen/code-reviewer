@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.vemo.codereview.CodeReviewerApplication;
@@ -47,9 +48,9 @@ class ProjectControllerTest {
     @BeforeEach
     void clearData() {
         projectProfileMapper.delete(null);
-        when(gitLabProjectResolver.resolveProject("http://gitlab.example.com/group/mas-core"))
+        when(gitLabProjectResolver.resolveProject(eq("http://gitlab.example.com/group/mas-core"), eq("project-token")))
             .thenReturn(buildProjectPayload(1001L, "http://gitlab.example.com/group/mas-core"));
-        when(gitLabProjectResolver.resolveProject("http://gitlab.example.com/group/mas-core-updated"))
+        when(gitLabProjectResolver.resolveProject(eq("http://gitlab.example.com/group/mas-core-updated"), eq("project-token")))
             .thenReturn(buildProjectPayload(1002L, "http://gitlab.example.com/group/mas-core-updated"));
     }
 
@@ -58,7 +59,8 @@ class ProjectControllerTest {
         String createPayload = "{"
             + "\"projectName\":\"MAS Core\","
             + "\"gitlabProjectUrl\":\"http://gitlab.example.com/group/mas-core\","
-            + "\"aiReviewEnabled\":true,"
+            + "\"gitlabWebhookToken\":\"project-token\","
+            + "\"aiReviewEnabled\":false,"
             + "\"gitlabNoteEnabled\":true,"
             + "\"wecomNotifyEnabled\":true,"
             + "\"wecomWebhookUrl\":\"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test\","
@@ -86,6 +88,7 @@ class ProjectControllerTest {
         String updatePayload = "{"
             + "\"projectName\":\"MAS Core Updated\","
             + "\"gitlabProjectUrl\":\"http://gitlab.example.com/group/mas-core-updated\","
+            + "\"gitlabWebhookToken\":\"project-token\","
             + "\"aiReviewEnabled\":false,"
             + "\"gitlabNoteEnabled\":false,"
             + "\"wecomNotifyEnabled\":false,"

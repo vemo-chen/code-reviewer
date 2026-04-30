@@ -12,12 +12,6 @@ spring:
     url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/code_reviewer?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${DB_USERNAME:code_reviewer}
     password: ${DB_PASSWORD:change_me}
-  redis:
-    host: ${REDIS_HOST:127.0.0.1}
-    database: ${REDIS_DATABASE:0}
-    password: ${REDIS_PASSWORD:}
-    port: ${REDIS_PORT:6379}
-
 server:
   port: 8765
 
@@ -35,22 +29,8 @@ code-reviewer:
       queue-capacity: 200
       thread-name-prefix: review-worker-
   gitlab:
-    url: ${GITLAB_URL:http://gitlab.example.com}
-    token: ${GITLAB_TOKEN:change_me}
     connect-timeout-ms: 5000
     read-timeout-ms: 15000
-  llm:
-    base-url: ${LLM_BASE_URL:https://api.deepseek.com/v1}
-    api-key: ${LLM_API_KEY:change_me}
-    model: ${LLM_MODEL:deepseek-chat}
-    timeout-ms: 30000
-    max-tokens: 4096
-    temperature: 0.2
   review:
     rules-file: config/review-rules.md
     rule-refresh-ms: 30000
-  notify:
-    wecom:
-      enabled: ${WECOM_NOTIFY_ENABLED:false}
-      webhook-url: ${WECOM_WEBHOOK_URL:}
-      secret: ${WECOM_SECRET:}
