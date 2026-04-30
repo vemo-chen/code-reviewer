@@ -1,0 +1,66 @@
+version: "3.9"
+
+x-backend-image: &backend_image "your-dockerhub-user/code-reviewer-backend:latest"
+x-web-image: &web_image "your-dockerhub-user/code-reviewer-web:latest"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: code-reviewer-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: change_me_root_password
+      MYSQL_DATABASE: code_reviewer
+      MYSQL_USER: code_reviewer
+      MYSQL_PASSWORD: change_me_db_password
+      TZ: Asia/Shanghai
+    command:
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "13888:3306"
+    volumes:
+      - code-reviewer-mysql-data:/var/lib/mysql
+    networks:
+      - code-reviewer-net
+
+  backend:
+    image: *backend_image
+    container_name: code-reviewer-backend
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    network_mode: host
+    command: >
+      java -jar /app/app.jar
+      --spring.profiles.active=prod
+      --spring.config.additional-location=file:/app/config/
+    environment:
+      LOG_DIR: /app/logs
+      TZ: Asia/Shanghai
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Shanghai
+    volumes:
+      - /home/hc/code-reviewer/config:/app/config
+      - /home/hc/code-reviewer/logs:/app/logs
+
+  web:
+    image: *web_image
+    container_name: code-reviewer-web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /home/hc/code-reviewer/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - code-reviewer-net
+
+networks:
+  code-reviewer-net:
+    driver: bridge
+
+volumes:
+  code-reviewer-mysql-data:

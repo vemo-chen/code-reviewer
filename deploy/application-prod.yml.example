@@ -1,0 +1,34 @@
+spring:
+  jackson:
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:13888/code_reviewer?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: code_reviewer
+    password: change_me_db_password
+
+server:
+  port: 8765
+
+code-reviewer:
+  gitlab:
+    url: http://your-gitlab-host
+    token: change_me_global_gitlab_token
+    connect-timeout-ms: 5000
+    read-timeout-ms: 15000
+  llm:
+    base-url: https://api.deepseek.com/v1
+    api-key: change_me_llm_api_key
+    model: deepseek-chat
+    timeout-ms: 30000
+    max-tokens: 4096
+    temperature: 0.2
+  review:
+    rules-file: /app/config/review-rules.md
+    rule-refresh-ms: 30000
+  notify:
+    wecom:
+      enabled: true
+      webhook-url: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=change_me_wecom_webhook_key
