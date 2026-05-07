@@ -94,4 +94,55 @@ a {
   background-color: rgba(255, 140, 0, 0.06);
   color: var(--cr-primary);
 }
+
+.el-pagination {
+  --el-color-primary: var(--cr-primary);
+  --el-pagination-hover-color: var(--cr-primary);
+}
+
+.el-pagination.is-background .btn-prev,
+.el-pagination.is-background .btn-next,
+.el-pagination.is-background .el-pager li {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background-color: transparent;
+  color: var(--cr-text);
+  box-shadow: none;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.el-pagination.is-background .btn-prev:hover,
+.el-pagination.is-background .btn-next:hover,
+.el-pagination.is-background .el-pager li:hover {
+  border-color: rgba(255, 140, 0, 0.24);
+  background-color: transparent;
+  color: var(--cr-primary);
+}
+
+.el-pagination.is-background .el-pager li.is-active {
+  border-color: rgba(255, 140, 0, 0.28);
+  background-color: transparent;
+  color: var(--cr-primary);
+  box-shadow: none;
+}
+
+.el-pagination.is-background .el-pager li.is-active:hover,
+.el-pagination.is-background .el-pager li.is-active:focus-visible {
+  border-color: rgba(255, 140, 0, 0.28);
+  background-color: transparent;
+  color: var(--cr-primary);
+}
+
+.el-select {
+  --el-color-primary: var(--cr-primary);
+}
+
+.el-select-dropdown__item.is-hovering,
+.el-select-dropdown__item:hover {
+  background-color: rgba(255, 140, 0, 0.08);
+}
+
+.el-select-dropdown__item.is-selected {
+  color: var(--cr-primary);
+}
 </style>
