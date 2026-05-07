@@ -83,6 +83,7 @@ public class GitLabWebhookHandlerService {
             if (reviewableEvents.isEmpty()) {
                 StandardReviewEvent ignoredEvent = events.isEmpty() ? gitLabWebhookEventNormalizer.normalizePush(payload)
                     : events.get(events.size() - 1);
+                resolveManagedProject(ignoredEvent, startNs);
                 createIgnoredEvent(ignoredEvent);
                 log.info("webhook ignored because push contains only merge commits. idempotentKey={}, commitEvents={}, elapsedMs={}",
                     ignoredEvent.getIdempotentKey(), events.size(), elapsedMs(startNs));
@@ -118,9 +119,7 @@ public class GitLabWebhookHandlerService {
                 event.getIdempotentKey(), elapsedMs(webhookStartNs));
             return;
         }
-        ProjectProfileEntity project = projectConfigService.findByGitLabProjectId(event.getProjectId());
-        log.info("webhook project lookup finished. gitlabProjectId={}, matchedProjectId={}, elapsedMs={}",
-            event.getProjectId(), project == null ? null : project.getId(), elapsedMs(webhookStartNs));
+        ProjectProfileEntity project = resolveManagedProject(event, webhookStartNs);
         if (project == null) {
             createIgnoredEvent(event);
             log.info("webhook ignored because project not found. idempotentKey={}, elapsedMs={}",
@@ -141,6 +140,20 @@ public class GitLabWebhookHandlerService {
             return;
         }
         createReviewTask(event, taskType, webhookStartNs);
+    }
+
+    private ProjectProfileEntity resolveManagedProject(StandardReviewEvent event, long webhookStartNs) {
+        if (event == null) {
+            return null;
+        }
+        Long gitLabProjectId = event.getProjectId();
+        ProjectProfileEntity project = projectConfigService.findByGitLabProjectId(gitLabProjectId);
+        log.info("webhook project lookup finished. gitlabProjectId={}, matchedProjectId={}, elapsedMs={}",
+            gitLabProjectId, project == null ? null : project.getId(), elapsedMs(webhookStartNs));
+        if (project != null) {
+            bindProjectContext(event, project);
+        }
+        return project;
     }
 
     private void bindProjectContext(StandardReviewEvent event, ProjectProfileEntity project) {

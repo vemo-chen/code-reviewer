@@ -69,42 +69,42 @@ public class WeComNotificationService {
         List<CodeReviewCommentEntity> comments) {
         StringBuilder builder = new StringBuilder();
         builder.append("## AI Code Review\n");
-        builder.append("> Project ID: <font color=\"comment\">").append(projectId).append("</font>\n");
+        builder.append("> 项目ID：<font color=\"comment\">").append(projectId).append("</font>\n");
         builder.append("> ").append(resolveTargetLabel(metadata == null ? null : metadata.getReviewTargetType()))
-            .append(": <font color=\"comment\">")
+            .append("：<font color=\"comment\">")
             .append(safe(metadata == null ? null : metadata.getTargetId()))
             .append("</font>\n");
-        builder.append("> Submit message: <font color=\"comment\">")
+        builder.append("> 提交信息：<font color=\"comment\">")
             .append(safe(metadata == null ? null : metadata.getSubmitMessage()))
             .append("</font>\n");
-        builder.append("> Submitter: <font color=\"comment\">")
+        builder.append("> 提交者：<font color=\"comment\">")
             .append(safe(metadata == null ? null : metadata.getSubmitter()))
             .append("</font>\n");
-        builder.append("> Branch: <font color=\"comment\">")
+        builder.append("> 提交分支：<font color=\"comment\">")
             .append(safe(metadata == null ? null : metadata.getSubmitBranch()))
             .append("</font>\n");
-        builder.append("> Submitted at: <font color=\"comment\">")
+        builder.append("> 提交时间：<font color=\"comment\">")
             .append(safe(metadata == null ? null : metadata.getSubmitTime()))
             .append("</font>\n");
-        builder.append("> Risk: ").append(formatSeverity(result.getRiskLevel())).append("\n");
-        builder.append("> Score: <font color=\"comment\">")
+        builder.append("> 风险等级：").append(formatSeverity(result.getRiskLevel())).append("\n");
+        builder.append("> 最终得分：<font color=\"comment\">")
             .append(safeScore(resolveFinalScore(result))).append("</font>\n");
         if (StringUtils.hasText(result.getScoreReason())) {
-            builder.append("> Score reason: ").append(safe(result.getScoreReason())).append("\n");
+            builder.append("> 得分说明：").append(safe(result.getScoreReason())).append("\n");
         }
-        builder.append("> Summary: ").append(safe(resolveDisplayedSummary(result))).append("\n");
+        builder.append("> 审查摘要：").append(safe(resolveDisplayedSummary(result))).append("\n");
         if (StringUtils.hasText(result.getAdvice())) {
-            builder.append("> Advice: ").append(safe(result.getAdvice())).append("\n");
+            builder.append("> 建议：").append(safe(result.getAdvice())).append("\n");
         }
-        builder.append("> Issue count: <font color=\"comment\">")
+        builder.append("> 问题总数：<font color=\"comment\">")
             .append(comments == null ? 0 : comments.size())
             .append("</font>\n\n");
 
         if (comments == null || comments.isEmpty()) {
-            builder.append("No parsed issues.\n\n");
+            builder.append("未解析到问题。\n\n");
         } else {
             int limit = Math.min(comments.size(), 3);
-            builder.append("**Top issues (first ").append(limit).append(")**\n");
+            builder.append("**重点问题（前").append(limit).append("条）**\n");
             for (int i = 0; i < limit; i++) {
                 CodeReviewCommentEntity comment = comments.get(i);
                 builder.append("**")
@@ -114,30 +114,30 @@ public class WeComNotificationService {
                     .append("[")
                     .append(formatSeverity(comment.getSeverity()))
                     .append("]**\n");
-                builder.append("   **Location:** ").append(safe(comment.getFilePath()));
+                builder.append("   **位置：**").append(safe(comment.getFilePath()));
                 if (comment.getLineNo() != null) {
                     builder.append(":").append(comment.getLineNo());
                 }
                 builder.append("\n");
-                builder.append("   **Issue:** ").append(safe(comment.getMessage())).append("\n");
+                builder.append("   **问题：**").append(safe(comment.getMessage())).append("\n");
                 if (StringUtils.hasText(comment.getSuggestion())) {
-                    builder.append("   **Suggestion:** ").append(safe(comment.getSuggestion())).append("\n");
+                    builder.append("   **建议：**").append(safe(comment.getSuggestion())).append("\n");
                 }
             }
             if (comments.size() > limit) {
-                builder.append("\nThere are ")
+                builder.append("\n其余还有 ")
                     .append(comments.size() - limit)
-                    .append(" more issues. ");
+                    .append(" 条问题。");
             }
             String platformUrl = "http://localhost:5173/dashboard";
-            builder.append("Open [Code Reviewer](")
+            builder.append("请到[代码审查平台](")
                 .append(platformUrl)
-                .append(") for details.\n");
+                .append(")查看并操作。\n");
             builder.append("\n");
         }
 
         if (StringUtils.hasText(result.getSummary())) {
-            builder.append("**Full summary**\n");
+            builder.append("**总结**\n");
             builder.append(safe(result.getSummary()));
         }
         return builder.toString();
@@ -170,7 +170,7 @@ public class WeComNotificationService {
         if ("MR_REVIEW".equalsIgnoreCase(reviewTargetType) || "merge_request".equalsIgnoreCase(reviewTargetType)) {
             return "Merge Request IID";
         }
-        return "閻╊喗鐖D";
+        return "目标ID";
     }
 
     private String formatSeverity(String level) {

@@ -39,6 +39,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @Sql(scripts = "/db/schema.sql")
 class GitLabWebhookControllerTest {
 
+    private Long managedProjectId1001;
+    private Long managedProjectId1002;
+
     @MockBean
     private ReviewTaskDispatcher reviewTaskDispatcher;
 
@@ -59,8 +62,8 @@ class GitLabWebhookControllerTest {
         codeReviewTaskMapper.delete(new QueryWrapper<CodeReviewTaskEntity>());
         codeReviewEventMapper.delete(new QueryWrapper<CodeReviewEventEntity>());
         projectProfileMapper.delete(new QueryWrapper<ProjectProfileEntity>());
-        insertProject(1001L, true, true);
-        insertProject(1002L, true, true);
+        managedProjectId1001 = insertProject(1001L, true, true).getId();
+        managedProjectId1002 = insertProject(1002L, true, true).getId();
     }
 
     @Test
@@ -100,6 +103,8 @@ class GitLabWebhookControllerTest {
         assertEquals("PENDING", task.getStatus());
         assertEquals(event.getId(), task.getEventId());
         assertEquals("MR_REVIEW", task.getTaskType());
+        assertEquals(managedProjectId1001, event.getProjectId());
+        assertEquals(managedProjectId1001, task.getProjectId());
     }
 
     @Test
@@ -136,12 +141,14 @@ class GitLabWebhookControllerTest {
         assertEquals("abcdef123456", task.getTargetId());
         assertEquals("PUSH_REVIEW", task.getTaskType());
         assertEquals("Add push review", task.getTargetTitle());
+        assertEquals(managedProjectId1002, event.getProjectId());
+        assertEquals(managedProjectId1002, task.getProjectId());
     }
 
     @Test
     void shouldIgnoreWebhookWhenBranchIsNotConfiguredForReview() throws Exception {
         projectProfileMapper.delete(new QueryWrapper<ProjectProfileEntity>());
-        insertProject(1003L, true, true, "main,release");
+        ProjectProfileEntity project = insertProject(1003L, true, true, "main,release");
         String payload = "{"
             + "\"object_kind\":\"push\","
             + "\"event_type\":\"push\","
@@ -168,12 +175,13 @@ class GitLabWebhookControllerTest {
         assertNotNull(event);
         assertEquals("IGNORED", event.getStatus());
         assertEquals(Long.valueOf(0L), taskCount);
+        assertEquals(project.getId(), event.getProjectId());
     }
 
     @Test
     void shouldCreateTaskWhenBranchIsConfiguredForReview() throws Exception {
         projectProfileMapper.delete(new QueryWrapper<ProjectProfileEntity>());
-        insertProject(1004L, true, true, "main,feature/review");
+        ProjectProfileEntity project = insertProject(1004L, true, true, "main,feature/review");
         String payload = "{"
             + "\"object_kind\":\"push\","
             + "\"event_type\":\"push\","
@@ -198,12 +206,13 @@ class GitLabWebhookControllerTest {
 
         assertNotNull(task);
         assertEquals("PUSH_REVIEW", task.getTaskType());
+        assertEquals(project.getId(), task.getProjectId());
     }
 
     @Test
     void shouldReviewOnlyNonMergeCommitsInMultiCommitPush() throws Exception {
         projectProfileMapper.delete(new QueryWrapper<ProjectProfileEntity>());
-        insertProject(1005L, true, true, "feature/review");
+        ProjectProfileEntity project = insertProject(1005L, true, true, "feature/review");
         String payload = "{"
             + "\"object_kind\":\"push\","
             + "\"event_type\":\"push\","
@@ -235,18 +244,26 @@ class GitLabWebhookControllerTest {
             new QueryWrapper<CodeReviewTaskEntity>().eq("target_id", "normal22222222"));
         CodeReviewTaskEntity mergeTask = codeReviewTaskMapper.selectOne(
             new QueryWrapper<CodeReviewTaskEntity>().eq("target_id", "merge33333333"));
+        CodeReviewEventEntity firstEvent = codeReviewEventMapper.selectOne(
+            new QueryWrapper<CodeReviewEventEntity>().eq("object_id", "normal11111111"));
+        CodeReviewEventEntity secondEvent = codeReviewEventMapper.selectOne(
+            new QueryWrapper<CodeReviewEventEntity>().eq("object_id", "normal22222222"));
 
         assertEquals(Long.valueOf(2L), eventCount);
         assertEquals(Long.valueOf(2L), taskCount);
         assertNotNull(firstTask);
         assertNotNull(secondTask);
         assertNull(mergeTask);
+        assertEquals(project.getId(), firstEvent.getProjectId());
+        assertEquals(project.getId(), secondEvent.getProjectId());
+        assertEquals(project.getId(), firstTask.getProjectId());
+        assertEquals(project.getId(), secondTask.getProjectId());
     }
 
     @Test
     void shouldIgnorePushWhenAllCommitsAreMergeCommits() throws Exception {
         projectProfileMapper.delete(new QueryWrapper<ProjectProfileEntity>());
-        insertProject(1006L, true, true, "feature/review");
+        ProjectProfileEntity project = insertProject(1006L, true, true, "feature/review");
         String payload = "{"
             + "\"object_kind\":\"push\","
             + "\"event_type\":\"push\","
@@ -276,13 +293,14 @@ class GitLabWebhookControllerTest {
         assertNotNull(event);
         assertEquals("IGNORED", event.getStatus());
         assertEquals(Long.valueOf(0L), taskCount);
+        assertEquals(project.getId(), event.getProjectId());
     }
 
-    private void insertProject(Long gitlabProjectId, boolean active, boolean aiReviewEnabled) {
-        insertProject(gitlabProjectId, active, aiReviewEnabled, null);
+    private ProjectProfileEntity insertProject(Long gitlabProjectId, boolean active, boolean aiReviewEnabled) {
+        return insertProject(gitlabProjectId, active, aiReviewEnabled, null);
     }
 
-    private void insertProject(Long gitlabProjectId, boolean active, boolean aiReviewEnabled, String reviewBranches) {
+    private ProjectProfileEntity insertProject(Long gitlabProjectId, boolean active, boolean aiReviewEnabled, String reviewBranches) {
         ProjectProfileEntity entity = new ProjectProfileEntity();
         entity.setProjectKey("project:" + gitlabProjectId);
         entity.setProjectName("Project " + gitlabProjectId);
@@ -298,5 +316,6 @@ class GitLabWebhookControllerTest {
         entity.setCreatedAt(new Date());
         entity.setUpdatedAt(new Date());
         projectProfileMapper.insert(entity);
+        return entity;
     }
 }

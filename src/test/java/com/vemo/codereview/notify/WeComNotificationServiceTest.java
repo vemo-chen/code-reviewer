@@ -87,24 +87,24 @@ class WeComNotificationServiceTest {
         assertTrue(notified);
         assertEquals("/cgi-bin/webhook/send?key=test-key", request.getPath());
         assertEquals("markdown", payload.get("msgtype").asText());
-        assertTrue(markdown.contains("Project ID"));
+        assertTrue(markdown.contains("项目ID"));
         assertTrue(markdown.contains("Commit SHA"));
-        assertTrue(markdown.contains("Submit message"));
-        assertTrue(markdown.contains("Submitter"));
-        assertTrue(markdown.contains("Branch"));
-        assertTrue(markdown.contains("Submitted at"));
-        assertTrue(markdown.contains("Score"));
-        assertTrue(markdown.contains("Score reason"));
-        assertTrue(markdown.contains("Advice"));
-        assertFalse(markdown.contains("Rule deduction"));
+        assertTrue(markdown.contains("提交信息"));
+        assertTrue(markdown.contains("提交者"));
+        assertTrue(markdown.contains("提交分支"));
+        assertTrue(markdown.contains("提交时间"));
+        assertTrue(markdown.contains("最终得分"));
+        assertTrue(markdown.contains("得分说明"));
+        assertTrue(markdown.contains("建议"));
+        assertFalse(markdown.contains("Project ID"));
         assertTrue(markdown.contains("Suggested score: 88; Deducted 6 points; Final score: 82"));
         assertTrue(markdown.contains("Found one high risk issue"));
-        assertTrue(markdown.contains("> Risk: `HIGH`"));
+        assertTrue(markdown.contains("> 风险等级：`HIGH`"));
         assertTrue(markdown.contains("**1. Project hard rule[`HIGH`]**"));
-        assertTrue(markdown.contains("**Location:** src/main/java/com/vemo/App.java:42"));
-        assertTrue(markdown.contains("**Issue:** A project convention was violated"));
-        assertTrue(markdown.contains("**Suggestion:** Use Getter and Setter annotations"));
-        assertTrue(markdown.contains("**Full summary**"));
+        assertTrue(markdown.contains("**位置：**src/main/java/com/vemo/App.java:42"));
+        assertTrue(markdown.contains("**问题：**A project convention was violated"));
+        assertTrue(markdown.contains("**建议：**Use Getter and Setter annotations"));
+        assertTrue(markdown.contains("**总结**"));
     }
 
     @Test

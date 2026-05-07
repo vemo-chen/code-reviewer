@@ -73,8 +73,8 @@ class WeComNotificationManualIT {
         System.out.println("========================================================");
 
         assertTrue(markdown.contains("AI Code Review"));
-        assertTrue(markdown.contains("Risk"));
-        assertTrue(markdown.contains("Submitter"));
+        assertTrue(markdown.contains("风险等级"));
+        assertTrue(markdown.contains("提交者"));
         assertTrue(markdown.contains(comments.get(0).getFilePath()));
 
         boolean notified = weComNotificationService.notifyReviewResult(task.getProjectId(), metadata, result, comments);
