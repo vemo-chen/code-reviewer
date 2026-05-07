@@ -6,6 +6,7 @@ set "DOCKERFILE_PATH=%ROOT_DIR%\deploy\Dockerfile.backend"
 if "%OUTPUT_DIR%"=="" set "OUTPUT_DIR=%ROOT_DIR%\dist-images"
 if "%IMAGE_REPO%"=="" set "IMAGE_REPO=your-dockerhub-user/code-reviewer-backend"
 if "%MAVEN_CMD%"=="" set "MAVEN_CMD=mvn"
+if "%JAVA_HOME%"=="" if exist "C:\Program Files\Java\jdk-1.8\bin\javac.exe" set "JAVA_HOME=C:\Program Files\Java\jdk-1.8"
 if not "%JAVA_HOME%"=="" set "PATH=%JAVA_HOME%\bin;%PATH%"
 set "JAR_PATH=%ROOT_DIR%\target\code-reviewer-0.0.1-SNAPSHOT.jar"
 
@@ -20,7 +21,7 @@ if not exist "%OUTPUT_DIR%" (
 
 echo [1/3] Build backend jar locally...
 cd /d "%ROOT_DIR%" || goto :error
-call "%MAVEN_CMD%" -Dmaven.test.skip=true clean package || goto :error
+call %MAVEN_CMD% "-Dmaven.test.skip=true" clean package || goto :error
 
 if not exist "%JAR_PATH%" (
     echo.
