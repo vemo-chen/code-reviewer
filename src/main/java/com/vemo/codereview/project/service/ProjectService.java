@@ -230,6 +230,7 @@ public class ProjectService {
         entity.setTemplateId(request.getTemplateId());
         entity.setSupportedFileExtensions(normalizeText(request.getSupportedFileExtensions()));
         entity.setAiReviewEnabled(request.getAiReviewEnabled() == null ? Boolean.TRUE : request.getAiReviewEnabled());
+        entity.setReviewContextEnabled(request.getReviewContextEnabled() == null ? Boolean.TRUE : request.getReviewContextEnabled());
         entity.setGitlabNoteEnabled(request.getGitlabNoteEnabled() == null ? Boolean.TRUE : request.getGitlabNoteEnabled());
         entity.setWecomNotifyEnabled(request.getWecomNotifyEnabled() == null ? Boolean.FALSE : request.getWecomNotifyEnabled());
         entity.setWecomWebhookUrl(normalizeText(request.getWecomWebhookUrl()));
@@ -379,6 +380,7 @@ public class ProjectService {
         response.setSupportedFileExtensions(entity.getSupportedFileExtensions());
         response.setLlmModelId(entity.getLlmModelId());
         response.setAiReviewEnabled(entity.getAiReviewEnabled());
+        response.setReviewContextEnabled(entity.getReviewContextEnabled());
         response.setGitlabNoteEnabled(entity.getGitlabNoteEnabled());
         response.setWecomNotifyEnabled(entity.getWecomNotifyEnabled());
         response.setWecomWebhookUrl(entity.getWecomWebhookUrl());

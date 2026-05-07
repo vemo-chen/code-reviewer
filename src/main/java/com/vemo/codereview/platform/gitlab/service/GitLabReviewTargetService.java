@@ -72,6 +72,21 @@ public class GitLabReviewTargetService {
         return response;
     }
 
+    public String getRepositoryFileRaw(String gitlabProjectUrl, Long projectId,
+                                       String filePath, String ref, String token) {
+        long startNs = System.nanoTime();
+        String content = gitLabApiClient.getRepositoryFileRaw(
+            resolveBaseUrl(gitlabProjectUrl),
+            projectId,
+            filePath,
+            ref,
+            token
+        );
+        log.info("gitlab repository file raw fetched. projectId={}, filePath={}, ref={}, bytes={}, elapsedMs={}",
+            projectId, filePath, ref, content == null ? 0 : content.length(), elapsedMs(startNs));
+        return content;
+    }
+
     public void publishMergeRequestNote(Long projectId, String mergeRequestIid, String body) {
         publishMergeRequestNote(projectId, mergeRequestIid, body, null);
     }

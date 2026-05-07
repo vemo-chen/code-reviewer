@@ -55,4 +55,43 @@ select {
 a {
   color: inherit;
 }
+
+.el-drawer__close-btn {
+  width: 30px !important;
+  height: 30px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid #e9ebec !important;
+  border-radius: 9px;
+  background: #ffffff !important;
+  color: rgba(96, 98, 102, 0.9);
+}
+
+.el-drawer__close-btn:hover,
+.el-drawer__close-btn:focus-visible {
+  border-color: var(--cr-primary) !important;
+  color: var(--cr-primary) !important;
+}
+
+.el-drawer .drawer-footer .el-button:not(.el-button--warning) {
+  --el-button-border-color: #e9ebec;
+  --el-button-hover-border-color: var(--cr-primary);
+  --el-button-hover-text-color: var(--cr-primary);
+  border-color: #e9ebec !important;
+}
+
+.el-button:not(.el-button--warning):not(.el-button--primary):not(.el-button--success):not(.el-button--danger):not(.is-link) {
+  --el-button-hover-border-color: var(--cr-primary);
+  --el-button-hover-bg-color: rgba(255, 140, 0, 0.06);
+  --el-button-hover-text-color: var(--cr-primary);
+}
+
+.el-button:not(.el-button--warning):not(.el-button--primary):not(.el-button--success):not(.el-button--danger):not(.is-link):hover,
+.el-button:not(.el-button--warning):not(.el-button--primary):not(.el-button--success):not(.el-button--danger):not(.is-link):focus-visible {
+  border-color: var(--cr-primary);
+  background-color: rgba(255, 140, 0, 0.06);
+  color: var(--cr-primary);
+}
 </style>

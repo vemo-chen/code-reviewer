@@ -20,6 +20,7 @@ public class ProjectUpsertRequest {
     private List<Long> memberUserIds;
     private Long llmModelId;
     private Boolean aiReviewEnabled;
+    private Boolean reviewContextEnabled;
     private Boolean gitlabNoteEnabled;
     private Boolean wecomNotifyEnabled;
     private String wecomWebhookUrl;

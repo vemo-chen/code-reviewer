@@ -98,6 +98,11 @@ public class ReviewResponseParser {
             draft.setCategory(normalizeCategory(readText(commentNode, "category", "General")));
             draft.setMessage(readText(commentNode, "message", ""));
             draft.setSuggestion(readText(commentNode, "suggestion", null));
+            draft.setSuggestedCode(readText(commentNode, "suggestedCode", null));
+            draft.setCodeStartLine(commentNode.path("codeStartLine").isInt() ? commentNode.path("codeStartLine").asInt() : null);
+            draft.setCodeEndLine(commentNode.path("codeEndLine").isInt() ? commentNode.path("codeEndLine").asInt() : null);
+            draft.setEvidenceType(normalizeEvidenceType(readText(commentNode, "evidenceType", "DIFF_ONLY")));
+            draft.setConfidence(normalizeConfidence(readText(commentNode, "confidence", "MEDIUM")));
             draft.setCommentHash(buildCommentHash(draft));
             comments.add(draft);
         }
@@ -138,6 +143,14 @@ public class ReviewResponseParser {
 
     private String normalizeSeverity(String value) {
         return normalizeEnum(value, "LOW", "MEDIUM", "HIGH", "CRITICAL");
+    }
+
+    private String normalizeEvidenceType(String value) {
+        return normalizeEnum(value, "DIFF_ONLY", "DIFF_WITH_CONTEXT", "NEEDS_CONFIRMATION");
+    }
+
+    private String normalizeConfidence(String value) {
+        return normalizeEnum(value, "LOW", "MEDIUM", "HIGH");
     }
 
     private String normalizeCategory(String value) {

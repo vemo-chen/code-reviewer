@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS project_profile (
     supported_file_extensions VARCHAR(1000),
     llm_model_id BIGINT,
     ai_review_enabled TINYINT(1) NOT NULL DEFAULT 1,
+    review_context_enabled TINYINT(1) NOT NULL DEFAULT 1,
     gitlab_note_enabled TINYINT(1) NOT NULL DEFAULT 1,
     wecom_notify_enabled TINYINT(1) NOT NULL DEFAULT 0,
     wecom_webhook_url VARCHAR(512),
@@ -243,4 +244,19 @@ CREATE TABLE IF NOT EXISTS sys_user_project_rel (
     UNIQUE KEY uk_sys_user_project (user_id, project_id),
     KEY idx_sys_user_project_user (user_id),
     KEY idx_sys_user_project_project (project_id)
+);
+
+CREATE TABLE IF NOT EXISTS code_review_comment_code_snapshot (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    comment_id BIGINT NOT NULL,
+    file_path VARCHAR(512) NOT NULL,
+    ref VARCHAR(128),
+    current_code MEDIUMTEXT,
+    suggested_code MEDIUMTEXT,
+    start_line INT,
+    end_line INT,
+    evidence_type VARCHAR(32),
+    confidence VARCHAR(32),
+    created_at DATETIME NOT NULL,
+    KEY idx_comment_code_snapshot_comment (comment_id)
 );

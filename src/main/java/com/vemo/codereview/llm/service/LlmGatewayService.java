@@ -3,6 +3,7 @@ package com.vemo.codereview.llm.service;
 import com.vemo.codereview.llm.model.ChatCompletionRequest;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
 import com.vemo.codereview.llm.model.LlmRuntimeConfig;
+import com.vemo.codereview.review.model.ReviewCodeSnippet;
 import com.vemo.codereview.review.model.ReviewPromptPayload;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,9 +52,35 @@ public class LlmGatewayService {
                         builder.append(file.getDiffChunks().get(i)).append('\n');
                     }
                 }
+                appendSemanticContext(builder, file);
                 builder.append('\n');
             }
         }
         return builder.toString();
+    }
+
+    private void appendSemanticContext(StringBuilder builder, ReviewPromptPayload.PromptFilePayload file) {
+        if (file.getContextStatus() == null && file.getContextSnippets() == null) {
+            return;
+        }
+        builder.append("Context Status: ").append(file.getContextStatus()).append('\n');
+        if (file.getSkipReason() != null) {
+            builder.append("Context Skip Reason: ").append(file.getSkipReason()).append('\n');
+        }
+        if (file.getRiskHints() != null && !file.getRiskHints().isEmpty()) {
+            builder.append("Risk Hints: ").append(String.join(", ", file.getRiskHints())).append('\n');
+        }
+        if (Boolean.TRUE.equals(file.getContextTruncated())) {
+            builder.append("Context Truncated: true").append('\n');
+        }
+        if (file.getContextSnippets() == null || file.getContextSnippets().isEmpty()) {
+            return;
+        }
+        builder.append("Semantic Context:").append('\n');
+        for (ReviewCodeSnippet snippet : file.getContextSnippets()) {
+            builder.append("Snippet: ").append(snippet.getTitle())
+                .append(", lines ").append(snippet.getStartLine()).append("-").append(snippet.getEndLine()).append('\n');
+            builder.append(snippet.getContent()).append('\n');
+        }
     }
 }

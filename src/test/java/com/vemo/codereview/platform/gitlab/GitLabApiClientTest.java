@@ -146,6 +146,27 @@ class GitLabApiClientTest {
     }
 
     @Test
+    void shouldFetchRepositoryFileRawContentWithEncodedPathAndRef() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setHeader("Content-Type", "text/plain")
+            .setBody("public class App {}"));
+
+        String content = gitLabApiClient.getRepositoryFileRaw(
+            mockWebServer.url("").toString(),
+            1001L,
+            "src/main/java/com/example/App.java",
+            "feature/context review",
+            "gitlab-access-token"
+        );
+
+        RecordedRequest request = mockWebServer.takeRequest();
+        assertEquals("/api/v4/projects/1001/repository/files/src%2Fmain%2Fjava%2Fcom%2Fexample%2FApp.java/raw?ref=feature%2Fcontext+review",
+            request.getPath());
+        assertEquals("gitlab-access-token", request.getHeader("PRIVATE-TOKEN"));
+        assertEquals("public class App {}", content);
+    }
+
+    @Test
     void shouldCreateMergeRequestNote() throws Exception {
         mockWebServer.enqueue(new MockResponse()
             .setHeader("Content-Type", "application/json")

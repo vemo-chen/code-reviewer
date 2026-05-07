@@ -1,10 +1,13 @@
 package com.vemo.codereview.review.service;
 
 import com.vemo.codereview.platform.gitlab.model.GitLabChangesPayload;
+import com.vemo.codereview.review.model.ReviewFileContext;
 import com.vemo.codereview.review.model.ReviewExecutionContext;
 import com.vemo.codereview.review.model.ReviewPromptPayload;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -34,11 +37,21 @@ public class PromptBuilderService {
         );
 
         List<ReviewPromptPayload.PromptFilePayload> files = new ArrayList<ReviewPromptPayload.PromptFilePayload>();
+        Map<String, ReviewFileContext> contextByPath = contextByPath(reviewContext.getFileContexts());
         for (GitLabChangesPayload.Change change : reviewableChanges) {
             ReviewPromptPayload.PromptFilePayload promptFile = new ReviewPromptPayload.PromptFilePayload();
-            promptFile.setFilePath(change.getNewPath() != null ? change.getNewPath() : change.getOldPath());
+            String filePath = change.getNewPath() != null ? change.getNewPath() : change.getOldPath();
+            promptFile.setFilePath(filePath);
             promptFile.setChangeType(resolveChangeType(change));
             promptFile.setDiffChunks(diffChunkService.chunk(change.getDiff()));
+            ReviewFileContext fileContext = contextByPath.get(filePath);
+            if (fileContext != null) {
+                promptFile.setContextStatus(fileContext.getContentStatus());
+                promptFile.setSkipReason(fileContext.getSkipReason());
+                promptFile.setRiskHints(fileContext.getRiskHints());
+                promptFile.setContextSnippets(fileContext.getSnippets());
+                promptFile.setContextTruncated(fileContext.getTruncated());
+            }
             files.add(promptFile);
         }
 
@@ -81,6 +94,14 @@ public class PromptBuilderService {
         builder.append("- comments[].category: use Chinese category names only, e.g. 鍔熻兘姝ｇ‘鎬с€佸畨鍏ㄦ€с€佸彲缁存姢鎬с€佹€ц兘銆侀」鐩‖鎬ц鑼冦€侀€氱敤闂").append('\n');
         builder.append("- comments[].message").append('\n');
         builder.append("- comments[].suggestion").append('\n');
+        builder.append("- comments[].suggestedCode: optional short code snippet after applying the recommendation").append('\n');
+        builder.append("- comments[].codeStartLine: optional start line of the related code snippet").append('\n');
+        builder.append("- comments[].codeEndLine: optional end line of the related code snippet").append('\n');
+        builder.append("- comments[].confidence: HIGH, MEDIUM, or LOW").append('\n');
+        builder.append("- comments[].evidenceType: DIFF_ONLY, DIFF_WITH_CONTEXT, or NEEDS_CONFIRMATION").append('\n');
+        builder.append("You may use semantic context to evaluate nullability, permissions, transactions, state transitions, and compatibility. ");
+        builder.append("Only comment on issues introduced or amplified by this diff. Do not report unrelated historical issues. ");
+        builder.append("If evidence is insufficient, set evidenceType to NEEDS_CONFIRMATION. ");
         builder.append("If there are hard-rule violations, mention them explicitly in summary and briefSummary. ");
         builder.append("suggestedScore must be an integer and should reflect the overall quality before any programmatic hard-rule deductions.");
         return builder.toString();
@@ -107,5 +128,18 @@ public class PromptBuilderService {
             return "RENAMED";
         }
         return "MODIFIED";
+    }
+
+    private Map<String, ReviewFileContext> contextByPath(List<ReviewFileContext> fileContexts) {
+        Map<String, ReviewFileContext> result = new HashMap<String, ReviewFileContext>();
+        if (fileContexts == null) {
+            return result;
+        }
+        for (ReviewFileContext fileContext : fileContexts) {
+            if (fileContext != null && fileContext.getFilePath() != null) {
+                result.put(fileContext.getFilePath(), fileContext);
+            }
+        }
+        return result;
     }
 }

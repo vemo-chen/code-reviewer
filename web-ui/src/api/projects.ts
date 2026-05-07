@@ -23,6 +23,7 @@ export interface ProjectUpsertPayload {
   memberUserIds?: number[];
   llmModelId?: number | null;
   aiReviewEnabled: boolean;
+  reviewContextEnabled: boolean;
   gitlabNoteEnabled: boolean;
   wecomNotifyEnabled: boolean;
   wecomWebhookUrl?: string;

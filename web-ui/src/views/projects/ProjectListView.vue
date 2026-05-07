@@ -36,15 +36,43 @@
               </template>
             </el-table-column>
             <el-table-column :label="texts.aiReview" min-width="100">
+              <template #header>
+                <el-tooltip :content="texts.aiReviewDesc" placement="top">
+                  <span class="table-header-tip">{{ texts.aiReview }}</span>
+                </el-tooltip>
+              </template>
               <template #default="{ row }"><span :class="['status-pill', row.aiReviewEnabled ? 'is-primary' : 'is-neutral']">{{ row.aiReviewEnabled ? texts.enabled : texts.disabled }}</span></template>
             </el-table-column>
+            <el-table-column :label="texts.reviewContext" min-width="120">
+              <template #header>
+                <el-tooltip :content="texts.reviewContextDesc" placement="top">
+                  <span class="table-header-tip">{{ texts.reviewContext }}</span>
+                </el-tooltip>
+              </template>
+              <template #default="{ row }"><span :class="['status-pill', row.reviewContextEnabled !== false ? 'is-primary' : 'is-neutral']">{{ row.reviewContextEnabled !== false ? texts.enabled : texts.disabled }}</span></template>
+            </el-table-column>
             <el-table-column :label="texts.gitlabNote" min-width="110">
+              <template #header>
+                <el-tooltip :content="texts.gitlabNoteDesc" placement="top">
+                  <span class="table-header-tip">{{ texts.gitlabNote }}</span>
+                </el-tooltip>
+              </template>
               <template #default="{ row }"><span :class="['status-pill', row.gitlabNoteEnabled ? 'is-primary' : 'is-neutral']">{{ row.gitlabNoteEnabled ? texts.enabled : texts.disabled }}</span></template>
             </el-table-column>
             <el-table-column :label="texts.wecomNotify" min-width="110">
+              <template #header>
+                <el-tooltip :content="texts.wecomNotifyDesc" placement="top">
+                  <span class="table-header-tip">{{ texts.wecomNotify }}</span>
+                </el-tooltip>
+              </template>
               <template #default="{ row }"><span :class="['status-pill', row.wecomNotifyEnabled ? 'is-primary' : 'is-neutral']">{{ row.wecomNotifyEnabled ? texts.enabled : texts.disabled }}</span></template>
             </el-table-column>
             <el-table-column :label="texts.active" min-width="100">
+              <template #header>
+                <el-tooltip :content="texts.activeDesc" placement="top">
+                  <span class="table-header-tip">{{ texts.active }}</span>
+                </el-tooltip>
+              </template>
               <template #default="{ row }"><span :class="['status-pill', row.active ? 'is-primary' : 'is-neutral']">{{ row.active ? texts.activeEnabled : texts.activeDisabled }}</span></template>
             </el-table-column>
             <el-table-column :label="texts.updatedAt" min-width="180">
@@ -52,10 +80,12 @@
             </el-table-column>
             <el-table-column :label="texts.actions" width="230" fixed="right">
               <template #default="{ row }">
-                <el-button link type="primary" @click="openViewDialog(row)">{{ texts.view }}</el-button>
-                <el-button v-if="canEditProject(row)" link type="warning" @click="openEditDialog(row)">{{ texts.edit }}</el-button>
-                <el-button v-if="canEditProject(row)" link type="warning" :loading="refreshingId === row.id" @click="handleRefresh(row)">{{ texts.refresh }}</el-button>
-                <el-button v-if="canEditProject(row)" link type="danger" @click="handleDelete(row)">{{ texts.delete }}</el-button>
+                <div class="table-actions">
+                  <el-button link type="primary" @click="openViewDialog(row)">{{ texts.view }}</el-button>
+                  <el-button v-if="canEditProject(row)" link type="warning" @click="openEditDialog(row)">{{ texts.edit }}</el-button>
+                  <el-button v-if="canEditProject(row)" link type="warning" :loading="refreshingId === row.id" @click="handleRefresh(row)">{{ texts.refresh }}</el-button>
+                  <el-button v-if="canEditProject(row)" link type="danger" @click="handleDelete(row)">{{ texts.delete }}</el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -104,9 +134,11 @@
             </el-table-column>
             <el-table-column :label="texts.actions" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button link type="primary" @click="openViewTemplateDialog(row)">{{ texts.view }}</el-button>
-                <el-button v-if="canManageTemplate(row)" link type="warning" @click="openEditTemplateDialog(row)">{{ texts.edit }}</el-button>
-                <el-button v-if="canManageTemplate(row)" link type="danger" @click="handleDeleteTemplate(row)">{{ texts.delete }}</el-button>
+                <div class="table-actions">
+                  <el-button link type="primary" @click="openViewTemplateDialog(row)">{{ texts.view }}</el-button>
+                  <el-button v-if="canManageTemplate(row)" link type="warning" @click="openEditTemplateDialog(row)">{{ texts.edit }}</el-button>
+                  <el-button v-if="canManageTemplate(row)" link type="danger" @click="handleDeleteTemplate(row)">{{ texts.delete }}</el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -243,6 +275,13 @@
                 </div>
               </div>
               <div class="switch-item">
+                <div class="switch-item__copy">
+                  <span class="switch-item__title">{{ texts.reviewContext }}</span>
+                  <p class="switch-item__desc">{{ texts.reviewContextDesc }}</p>
+                </div>
+                <el-switch v-model="projectForm.reviewContextEnabled" />
+              </div>
+              <div class="switch-item">
                 <div class="switch-item__copy"><span class="switch-item__title">{{ texts.gitlabNote }}</span><p class="switch-item__desc">{{ texts.gitlabNoteDesc }}</p></div>
                 <el-switch v-model="projectForm.gitlabNoteEnabled" />
               </div>
@@ -322,12 +361,12 @@ interface LlmModelOption { id: number; configName: string; providerCode: string;
 interface ProjectItem {
   id: number; projectName: string; sourcePlatform: string; gitlabProjectId: number | null; gitlabProjectUrl: string; gitlabWebhookToken: string;
   reviewBranches?: string | null;
-  ownerUserId?: number | null; templateId?: number | null; templateName?: string | null; supportedFileExtensions?: string | null; llmModelId?: number | null; aiReviewEnabled: boolean; gitlabNoteEnabled: boolean; wecomNotifyEnabled: boolean;
+  ownerUserId?: number | null; templateId?: number | null; templateName?: string | null; supportedFileExtensions?: string | null; llmModelId?: number | null; aiReviewEnabled: boolean; reviewContextEnabled?: boolean; gitlabNoteEnabled: boolean; wecomNotifyEnabled: boolean;
   wecomWebhookUrl: string; promptContent: string; active: boolean; updatedAt: string | null;
 }
 interface ProjectForm {
   id?: number; projectName: string; sourcePlatform: string; gitlabProjectUrl: string; gitlabWebhookToken: string; ownerUserId?: number | null;
-  reviewBranches: string[]; templateId?: number | null; supportedFileExtensions: string; memberUserIds: number[]; llmModelId?: number | null; aiReviewEnabled: boolean; gitlabNoteEnabled: boolean; wecomNotifyEnabled: boolean;
+  reviewBranches: string[]; templateId?: number | null; supportedFileExtensions: string; memberUserIds: number[]; llmModelId?: number | null; aiReviewEnabled: boolean; reviewContextEnabled: boolean; gitlabNoteEnabled: boolean; wecomNotifyEnabled: boolean;
   wecomWebhookUrl: string; promptContent: string; active: boolean;
 }
 interface ReviewBranchOption extends GitLabBranchOption { missing?: boolean; }
@@ -348,13 +387,13 @@ const texts = {
   aiReviewStatus: "AI \u5ba1\u67e5\u72b6\u6001", wecomStatus: "\u4f01\u5fae\u901a\u77e5\u72b6\u6001", enabled: "\u5f00\u542f", disabled: "\u5173\u95ed", activeEnabled: "\u542f\u7528", activeDisabled: "\u505c\u7528",
   createTemplate: "\u65b0\u5efa\u6a21\u677f", editTemplate: "\u7f16\u8f91\u6a21\u677f", templateName: "\u6a21\u677f\u540d\u79f0", templateNamePlaceholder: "\u8bf7\u8f93\u5165\u6a21\u677f\u540d\u79f0", templateDesc: "\u6a21\u677f\u63cf\u8ff0", templateDescPlaceholder: "\u8bf7\u8f93\u5165\u6a21\u677f\u63cf\u8ff0", fileExtensions: "\u9002\u7528\u6587\u4ef6\u540e\u7f00", fileExtensionsPlaceholder: "\u4f8b\u5982\uff1a.java,.xml,.properties,.yml", reviewPromptStatus: "Review \u63d0\u793a\u8bcd", configured: "\u5df2\u914d\u7f6e", notConfigured: "\u672a\u914d\u7f6e", baseReviewPrompt: "\u57fa\u7840 review \u63d0\u793a\u8bcd\u6a21\u677f", baseReviewPromptPlaceholder: "\u8bf7\u8f93\u5165\u6a21\u677f\u7ea7\u57fa\u7840 review \u63d0\u793a\u8bcd",
   templateSection: "\u6a21\u677f\u914d\u7f6e", projectTemplateSelect: "\u9879\u76ee\u6a21\u677f", projectTemplateSelectPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee\u6a21\u677f", projectTemplateSelectDesc: "\u9009\u62e9\u9879\u76ee\u6240\u5c5e\u7684\u5ba1\u67e5\u6a21\u677f\uff0c\u7528\u4e8e\u63d0\u4f9b\u9ed8\u8ba4\u6587\u4ef6\u540e\u7f00\u548c Prompt \u914d\u7f6e\u3002", fileExtensionsOverride: "\u652f\u6301\u7684\u6587\u4ef6\u6269\u5c55\u540d", fileExtensionsOverrideDesc: "\u7559\u7a7a\u4e14\u5df2\u9009\u6a21\u677f\u65f6\uff0c\u4f7f\u7528\u6a21\u677f\u914d\u7f6e\u3002", projectPromptDesc: "\u7559\u7a7a\u4e14\u5df2\u9009\u6a21\u677f\u65f6\uff0c\u4f7f\u7528\u6a21\u677f\u63d0\u793a\u8bcd\uff1b\u5426\u5219\u4f18\u5148\u4f7f\u7528\u9879\u76ee Prompt\u3002",
-  search: "\u67e5\u8be2", reset: "\u91cd\u7f6e", createProject: "\u65b0\u5efa\u9879\u76ee", editProject: "\u7f16\u8f91\u9879\u76ee", viewProject: "\u67e5\u770b\u9879\u76ee", aiReview: "AI \u5ba1\u67e5", gitlabNote: "GitLab \u56de\u5199", wecomNotify: "\u4f01\u5fae\u901a\u77e5", active: "\u662f\u5426\u542f\u7528", updatedAt: "\u66f4\u65b0\u65f6\u95f4", actions: "\u64cd\u4f5c",
+  search: "\u67e5\u8be2", reset: "\u91cd\u7f6e", createProject: "\u65b0\u5efa\u9879\u76ee", editProject: "\u7f16\u8f91\u9879\u76ee", viewProject: "\u67e5\u770b\u9879\u76ee", aiReview: "AI \u5ba1\u67e5", reviewContext: "\u6df1\u5ea6\u5ba1\u67e5", gitlabNote: "GitLab \u56de\u5199", wecomNotify: "\u4f01\u5fae\u901a\u77e5", active: "\u662f\u5426\u542f\u7528", updatedAt: "\u66f4\u65b0\u65f6\u95f4", actions: "\u64cd\u4f5c",
   edit: "\u7f16\u8f91", refresh: "\u5237\u65b0", delete: "\u5220\u9664", totalPrefix: "\u5171", totalSuffix: "\u6761", pageSize10: "10\u6761/\u9875", pageSize20: "20\u6761/\u9875", pageSize50: "50\u6761/\u9875",
   view: "\u67e5\u770b", viewTemplate: "\u67e5\u770b\u9879\u76ee\u6a21\u677f", close: "\u5173\u95ed",
   webhookToken: "Webhook Token", webhookTokenPlaceholder: "\u8bf7\u8f93\u5165 GitLab Webhook Token", testGitLab: "\u6d4b\u8bd5 GitLab", testConnection: "\u6d4b\u8bd5\u8fde\u63a5", projectOwner: "\u9879\u76ee Owner", projectOwnerPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee Owner",
   projectMembers: "\u9879\u76ee\u6210\u5458", projectMembersPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee\u6210\u5458", creatorHint: "\u521b\u5efa\u540e\u4f60\u5c06\u81ea\u52a8\u6210\u4e3a\u8be5\u9879\u76ee\u7684 Owner \u548c\u6210\u5458\uff0c\u53ef\u989d\u5916\u6307\u5b9a\u5176\u4ed6\u9879\u76ee\u6210\u5458\u3002", memberHint: "\u9879\u76ee\u6210\u5458\u652f\u6301\u591a\u9009\uff0c\u9879\u76ee Owner \u4f1a\u81ea\u52a8\u4fdd\u6301\u5728\u6210\u5458\u5217\u8868\u4e2d\u3002",
   reviewBranches: "\u5ba1\u67e5\u5206\u652f", reviewBranchesPlaceholder: "\u8bf7\u9009\u62e9\u9700\u8981 AI \u5ba1\u67e5\u7684\u5206\u652f", reviewBranchesHint: "\u7559\u7a7a\u8868\u793a\u6240\u6709\u5206\u652f\u90fd\u89e6\u53d1\u5ba1\u67e5\uff1b\u5df2\u5220\u9664\u7684\u5df2\u9009\u5206\u652f\u4f1a\u4fdd\u7559\uff0c\u9700\u8981\u624b\u52a8\u53d6\u6d88\u624d\u4f1a\u79fb\u9664\u3002", refreshBranches: "\u5237\u65b0\u5206\u652f", loadBranchesFail: "\u52a0\u8f7d GitLab \u5206\u652f\u5931\u8d25", defaultBranch: "\u9ed8\u8ba4", protectedBranch: "\u4fdd\u62a4", missingBranch: "\u5f53\u524d\u4e0d\u5b58\u5728",
-  switchSection: "\u529f\u80fd\u5f00\u5173", aiReviewDesc: "\u63a7\u5236\u9879\u76ee\u662f\u5426\u81ea\u52a8\u89e6\u53d1 AI \u4ee3\u7801\u5ba1\u67e5\u3002", reviewModel: "\u5ba1\u67e5\u6a21\u578b", reviewModelPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee\u4f7f\u7528\u7684\u5927\u6a21\u578b",
+  switchSection: "\u529f\u80fd\u5f00\u5173", aiReviewDesc: "\u63a7\u5236\u9879\u76ee\u662f\u5426\u81ea\u52a8\u89e6\u53d1 AI \u4ee3\u7801\u5ba1\u67e5\u3002", reviewContextDesc: "\u5f00\u542f\u540e\u4f1a\u81ea\u52a8\u62c9\u53d6\u5b8c\u6574\u6587\u4ef6\u5e76\u6269\u5c55\u5230\u51fd\u6570\u6216\u7c7b\u7ea7\u4e0a\u4e0b\u6587\uff0c\u5ba1\u67e5\u66f4\u51c6\u786e\uff0c\u4f46\u4f1a\u589e\u52a0 token \u6d88\u8017\u548c\u8d39\u7528\u3002", reviewModel: "\u5ba1\u67e5\u6a21\u578b", reviewModelPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee\u4f7f\u7528\u7684\u5927\u6a21\u578b",
   gitlabNoteDesc: "\u5c06\u5ba1\u67e5\u7ed3\u679c\u81ea\u52a8\u56de\u5199\u5230 GitLab \u5907\u6ce8\u4e2d\u3002", wecomNotifyDesc: "\u6839\u636e\u9879\u76ee\u914d\u7f6e\u5411\u4f01\u4e1a\u5fae\u4fe1\u63a8\u9001\u5ba1\u67e5\u7ed3\u679c\u3002", wecomWebhook: "\u4f01\u5fae Webhook", wecomWebhookPlaceholder: "\u8bf7\u8f93\u5165\u4f01\u4e1a\u5fae\u4fe1 Webhook",
   activeDesc: "\u5173\u95ed\u540e\u9879\u76ee\u5c06\u4e0d\u518d\u53c2\u4e0e\u81ea\u52a8\u5ba1\u67e5\u6d41\u7a0b\u3002", projectPrompt: "\u9879\u76ee Prompt", projectPromptPlaceholder: "\u586b\u5199\u9879\u76ee\u7ea7\u8865\u5145\u89c4\u8303\uff0c\u4e3a\u7a7a\u65f6\u53ea\u4f7f\u7528\u516c\u5171\u89c4\u5219",
   cancel: "\u53d6\u6d88", save: "\u4fdd\u5b58", validateProjectName: "\u8bf7\u8f93\u5165\u9879\u76ee\u540d\u79f0", validateGitlabUrl: "\u8bf7\u8f93\u5165 GitLab \u9879\u76ee URL", warningOwner: "\u8bf7\u9009\u62e9\u9879\u76ee Owner", warningGitlabUrl: "\u8bf7\u5148\u586b\u5199 GitLab URL", warningGitlabToken: "\u8bf7\u5148\u586b\u5199 Webhook Token",
@@ -380,7 +419,7 @@ const queryForm = reactive({ projectName: "", gitlabProjectUrl: "", aiReviewEnab
 const templateQueryForm = reactive({ templateName: "" });
 const activeQuery = reactive({ projectName: "", gitlabProjectUrl: "", aiReviewEnabled: undefined as boolean | undefined, wecomNotifyEnabled: undefined as boolean | undefined });
 const activeTemplateQuery = reactive({ templateName: "" });
-const projectForm = reactive<ProjectForm>({ projectName: "", sourcePlatform: "gitlab", gitlabProjectUrl: "", gitlabWebhookToken: "", reviewBranches: [], ownerUserId: null, templateId: null, supportedFileExtensions: "", memberUserIds: [], llmModelId: null, aiReviewEnabled: true, gitlabNoteEnabled: true, wecomNotifyEnabled: false, wecomWebhookUrl: "", promptContent: "", active: true });
+const projectForm = reactive<ProjectForm>({ projectName: "", sourcePlatform: "gitlab", gitlabProjectUrl: "", gitlabWebhookToken: "", reviewBranches: [], ownerUserId: null, templateId: null, supportedFileExtensions: "", memberUserIds: [], llmModelId: null, aiReviewEnabled: true, reviewContextEnabled: true, gitlabNoteEnabled: true, wecomNotifyEnabled: false, wecomWebhookUrl: "", promptContent: "", active: true });
 const projectRules: FormRules<ProjectForm> = { projectName: [{ required: true, message: texts.validateProjectName, trigger: "blur" }], gitlabProjectUrl: [{ required: true, message: texts.validateGitlabUrl, trigger: "blur" }], gitlabWebhookToken: [{ required: true, message: texts.warningGitlabToken, trigger: "blur" }] };
 const templateForm = reactive<ProjectTemplateForm>({ templateName: "", templateDesc: "", fileExtensions: "", baseReviewPrompt: "" });
 const templateRules: FormRules<ProjectTemplateForm> = { templateName: [{ required: true, message: texts.validateTemplateName, trigger: "blur" }] };
@@ -472,7 +511,7 @@ const handleSearch = async () => { pagination.pageNo = 1; applyFilters(); await 
 const resetFilters = async () => { queryForm.projectName = ""; queryForm.gitlabProjectUrl = ""; queryForm.aiReviewEnabled = undefined; queryForm.wecomNotifyEnabled = undefined; pagination.pageNo = 1; applyFilters(); await loadProjects(); };
 const handleTemplateSearch = async () => { templatePagination.pageNo = 1; applyTemplateFilters(); await loadTemplates(); };
 const resetTemplateFilters = async () => { templateQueryForm.templateName = ""; templatePagination.pageNo = 1; applyTemplateFilters(); await loadTemplates(); };
-const resetProjectForm = () => { projectForm.id = undefined; projectForm.projectName = ""; projectForm.sourcePlatform = "gitlab"; projectForm.gitlabProjectUrl = ""; projectForm.gitlabWebhookToken = ""; projectForm.reviewBranches = []; gitlabBranchOptions.value = []; projectForm.ownerUserId = null; projectForm.templateId = null; projectForm.supportedFileExtensions = ""; projectForm.memberUserIds = []; projectForm.llmModelId = null; projectForm.aiReviewEnabled = true; projectForm.gitlabNoteEnabled = true; projectForm.wecomNotifyEnabled = false; projectForm.wecomWebhookUrl = ""; projectForm.promptContent = ""; projectForm.active = true; };
+const resetProjectForm = () => { projectForm.id = undefined; projectForm.projectName = ""; projectForm.sourcePlatform = "gitlab"; projectForm.gitlabProjectUrl = ""; projectForm.gitlabWebhookToken = ""; projectForm.reviewBranches = []; gitlabBranchOptions.value = []; projectForm.ownerUserId = null; projectForm.templateId = null; projectForm.supportedFileExtensions = ""; projectForm.memberUserIds = []; projectForm.llmModelId = null; projectForm.aiReviewEnabled = true; projectForm.reviewContextEnabled = true; projectForm.gitlabNoteEnabled = true; projectForm.wecomNotifyEnabled = false; projectForm.wecomWebhookUrl = ""; projectForm.promptContent = ""; projectForm.active = true; };
 const resetTemplateForm = () => { templateForm.id = undefined; templateForm.templateName = ""; templateForm.templateDesc = ""; templateForm.fileExtensions = ""; templateForm.baseReviewPrompt = ""; };
 const openCreateDialog = async () => {
   dialogMode.value = "create"; resetProjectForm(); drawerLoading.value = true; dialogVisible.value = true;
@@ -486,7 +525,7 @@ const openProjectDialog = async (mode: "edit" | "view", row: ProjectItem) => {
     const [detailResponse, usersResponse, memberResponse] = await Promise.all([fetchProjectDetail(row.id), fetchUsers({ pageNo: 1, pageSize: 500, status: "ENABLE" }), fetchProjectUsers(row.id), loadProjectLlmModels(row.id), loadTemplateOptions()]);
     const detail = detailResponse.data.data; const members = memberResponse.data.data?.users || [];
     selectableUsers.value = (usersResponse.data.data?.records || []).filter((item: ProjectMemberOption) => item.status === "ENABLE" && item.role !== "ADMIN").map((item: ProjectMemberOption) => ({ id: item.id, displayName: item.displayName || "", username: item.username || "", role: item.role || "", status: item.status || "" }));
-    projectForm.id = detail.id; projectForm.projectName = detail.projectName || ""; projectForm.sourcePlatform = detail.sourcePlatform || "gitlab"; projectForm.gitlabProjectUrl = detail.gitlabProjectUrl || ""; projectForm.gitlabWebhookToken = detail.gitlabWebhookToken || ""; projectForm.reviewBranches = parseBranches(detail.reviewBranches); projectForm.ownerUserId = detail.ownerUserId ?? null; projectForm.templateId = detail.templateId ?? null; projectForm.supportedFileExtensions = detail.supportedFileExtensions || ""; projectForm.memberUserIds = normalizeUserIds(members.map((item: ProjectMemberOption) => item.id)); projectForm.llmModelId = detail.llmModelId ?? null; projectForm.aiReviewEnabled = Boolean(detail.aiReviewEnabled); projectForm.gitlabNoteEnabled = Boolean(detail.gitlabNoteEnabled); projectForm.wecomNotifyEnabled = Boolean(detail.wecomNotifyEnabled); projectForm.wecomWebhookUrl = detail.wecomWebhookUrl || ""; projectForm.promptContent = detail.promptContent || ""; projectForm.active = detail.active !== false;
+    projectForm.id = detail.id; projectForm.projectName = detail.projectName || ""; projectForm.sourcePlatform = detail.sourcePlatform || "gitlab"; projectForm.gitlabProjectUrl = detail.gitlabProjectUrl || ""; projectForm.gitlabWebhookToken = detail.gitlabWebhookToken || ""; projectForm.reviewBranches = parseBranches(detail.reviewBranches); projectForm.ownerUserId = detail.ownerUserId ?? null; projectForm.templateId = detail.templateId ?? null; projectForm.supportedFileExtensions = detail.supportedFileExtensions || ""; projectForm.memberUserIds = normalizeUserIds(members.map((item: ProjectMemberOption) => item.id)); projectForm.llmModelId = detail.llmModelId ?? null; projectForm.aiReviewEnabled = Boolean(detail.aiReviewEnabled); projectForm.reviewContextEnabled = detail.reviewContextEnabled !== false; projectForm.gitlabNoteEnabled = Boolean(detail.gitlabNoteEnabled); projectForm.wecomNotifyEnabled = Boolean(detail.wecomNotifyEnabled); projectForm.wecomWebhookUrl = detail.wecomWebhookUrl || ""; projectForm.promptContent = detail.promptContent || ""; projectForm.active = detail.active !== false;
     if (projectForm.ownerUserId && !projectForm.memberUserIds.includes(projectForm.ownerUserId)) projectForm.memberUserIds = [...projectForm.memberUserIds, projectForm.ownerUserId];
     await loadGitLabBranchOptions(false);
   } catch (error) { dialogVisible.value = false; ElMessage.error(texts.loadProjectDetailFail); }
@@ -521,7 +560,7 @@ const openEditTemplateDialog = async (row: ProjectTemplateItem) => {
 };
 const handleOwnerChange = (value: number | null | undefined) => { if (!value) { projectForm.ownerUserId = null; return; } if (!projectForm.memberUserIds.includes(value)) projectForm.memberUserIds = [...projectForm.memberUserIds, value]; };
 const handleMemberChange = (value: number[]) => { let nextValues = normalizeUserIds(value); if (showCreatorHint.value && currentUserId.value && !nextValues.includes(currentUserId.value)) nextValues = [...nextValues, currentUserId.value]; projectForm.memberUserIds = nextValues; if (projectForm.ownerUserId && !nextValues.includes(projectForm.ownerUserId)) projectForm.ownerUserId = null; ensureCreatorDefaults(); };
-const buildPayload = (): ProjectUpsertPayload => ({ projectName: projectForm.projectName.trim(), sourcePlatform: projectForm.sourcePlatform || "gitlab", gitlabProjectUrl: projectForm.gitlabProjectUrl.trim(), gitlabWebhookToken: normalizeText(projectForm.gitlabWebhookToken), reviewBranches: serializeBranches(projectForm.reviewBranches), ownerUserId: dialogMode.value === "edit" || authStore.isAdmin ? projectForm.ownerUserId ?? null : undefined, templateId: projectForm.templateId ?? null, supportedFileExtensions: normalizeText(projectForm.supportedFileExtensions), memberUserIds: normalizeUserIds(projectForm.memberUserIds), llmModelId: projectForm.llmModelId ?? null, aiReviewEnabled: projectForm.aiReviewEnabled, gitlabNoteEnabled: projectForm.gitlabNoteEnabled, wecomNotifyEnabled: projectForm.wecomNotifyEnabled, wecomWebhookUrl: normalizeText(projectForm.wecomWebhookUrl), promptContent: projectForm.promptContent, active: projectForm.active });
+const buildPayload = (): ProjectUpsertPayload => ({ projectName: projectForm.projectName.trim(), sourcePlatform: projectForm.sourcePlatform || "gitlab", gitlabProjectUrl: projectForm.gitlabProjectUrl.trim(), gitlabWebhookToken: normalizeText(projectForm.gitlabWebhookToken), reviewBranches: serializeBranches(projectForm.reviewBranches), ownerUserId: dialogMode.value === "edit" || authStore.isAdmin ? projectForm.ownerUserId ?? null : undefined, templateId: projectForm.templateId ?? null, supportedFileExtensions: normalizeText(projectForm.supportedFileExtensions), memberUserIds: normalizeUserIds(projectForm.memberUserIds), llmModelId: projectForm.llmModelId ?? null, aiReviewEnabled: projectForm.aiReviewEnabled, reviewContextEnabled: projectForm.reviewContextEnabled, gitlabNoteEnabled: projectForm.gitlabNoteEnabled, wecomNotifyEnabled: projectForm.wecomNotifyEnabled, wecomWebhookUrl: normalizeText(projectForm.wecomWebhookUrl), promptContent: projectForm.promptContent, active: projectForm.active });
 const buildTemplatePayload = (): ProjectTemplateUpsertPayload => ({ templateName: templateForm.templateName.trim(), templateDesc: normalizeText(templateForm.templateDesc), fileExtensions: normalizeText(templateForm.fileExtensions), baseReviewPrompt: normalizeText(templateForm.baseReviewPrompt) });
 const submitProject = async () => {
   if (!projectFormRef.value) return; ensureCreatorDefaults();
@@ -610,7 +649,7 @@ onMounted(() => {
 .page-tabs :deep(.el-tabs__header) { margin: 0 0 18px; }
 .page-tabs :deep(.el-tabs__nav-wrap::after) { background: rgba(231, 223, 214, 0.82); }
 .page-tabs :deep(.el-tabs__item) { height: 42px; color: var(--cr-text-soft); font-size: 15px; font-weight: 700; }
-.page-tabs :deep(.el-tabs__item.is-active) { color: var(--cr-primary-deep); }
+.page-tabs :deep(.el-tabs__item.is-active) { color: var(--cr-primary); }
 .page-tabs :deep(.el-tabs__active-bar) { background: var(--cr-primary); }
 .query-panel, .table-panel { padding: 20px 22px; border-radius: 16px; background: var(--cr-surface-paper); box-shadow: var(--cr-shadow-card); }
 .actions { margin-left: auto; }
@@ -625,14 +664,21 @@ onMounted(() => {
 .token-test-button { width: 34px; min-width: 34px; height: 34px; padding: 0; border-radius: 10px; }
 .token-test-icon { width: 16px; height: 16px; display: block; }
 .query-select { width: 156px; }
-.status-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 68px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.is-primary { background: rgba(255, 140, 0, 0.12); color: var(--cr-primary-deep); }
-.is-neutral { background: rgba(118, 118, 118, 0.12); color: #5f5f5f; }
-.gitlab-link { color: var(--cr-primary-deep); text-decoration: none; }
+.table-header-tip { cursor: help; }
+.table-actions { display: inline-flex; align-items: center; flex-wrap: nowrap; gap: 10px; }
+.table-actions :deep(.el-button.is-link) { height: 22px; min-height: 22px; margin-left: 0; padding: 0 7px; border: 1px solid #e9ebec; border-radius: 4px; background: #ffffff; color: #303133; font-size: 12px; font-weight: 500; line-height: 20px; white-space: nowrap; }
+.table-actions :deep(.el-button.is-link:hover), .table-actions :deep(.el-button.is-link:focus-visible) { border-color: var(--cr-primary); background: rgba(255, 140, 0, 0.06); color: var(--cr-primary); }
+.table-actions :deep(.el-button.is-link.is-disabled) { border-color: #e9ebec; background: #ffffff; color: rgba(86, 67, 52, 0.34); }
+.status-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 0; padding: 0 7px; border: 1px solid currentColor; border-radius: 4px; background: #ffffff; font-size: 12px; font-weight: 500; line-height: 20px; }
+.is-primary { color: #389e0d; border-color: #b7eb8f; background: #f6ffed; }
+.is-neutral { color: #606266; border-color: #e9ebec; background: #ffffff; }
+.gitlab-link { color: var(--cr-primary); text-decoration: none; }
 .pagination-bar { margin-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .pagination-total { color: var(--cr-text-soft); font-size: 13px; }
 .pagination-actions { display: flex; align-items: center; gap: 12px; }
 .page-size-select { width: 116px; }
+:deep(.project-drawer .el-drawer__close-btn) { width: 30px; height: 30px; border: 1px solid #e9ebec; border-radius: 9px; background: #ffffff; }
+:deep(.project-drawer .el-drawer__close-btn:hover), :deep(.project-drawer .el-drawer__close-btn:focus-visible) { border-color: var(--cr-primary); color: var(--cr-primary); }
 .drawer-body { padding-right: 8px; }
 .project-form :deep(.el-form-item__label) { padding-bottom: 8px; color: rgba(86, 67, 52, 0.78); font-size: 12px; font-weight: 700; }
 .project-form :deep(.el-input__wrapper), .project-form :deep(.el-select__wrapper), .project-form :deep(.el-textarea__inner) { border-radius: 10px; box-shadow: 0 0 0 1px #ebeef5 inset; background: rgba(255, 255, 255, 0.96); }
@@ -646,10 +692,13 @@ onMounted(() => {
 .template-config-item { display: grid; gap: 10px; padding: 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 1px rgba(235, 238, 245, 0.92) inset; }
 .template-config-item__copy { display: grid; gap: 4px; }
 .switch-item { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 12px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 1px rgba(235, 238, 245, 0.92) inset; }
-.switch-item__copy { display: grid; gap: 4px; min-width: 0; }
+.switch-item__copy { display: grid; flex: 1 1 0; gap: 4px; min-width: 0; }
+.switch-item :deep(.el-switch) { flex: 0 0 auto; margin-left: auto; }
 .switch-item__title { color: var(--cr-text); font-size: 13px; font-weight: 700; }
 .switch-item__desc { margin: 0; color: var(--cr-text-soft); font-size: 12px; line-height: 1.5; }
 .switch-item__extra { width: 100%; display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(235, 238, 245, 0.92); }
 .switch-item__extra-head { display: grid; gap: 4px; }
 .drawer-footer { display: flex; justify-content: flex-end; gap: 12px; padding-top: 20px; }
+.drawer-footer :deep(.el-button:not(.el-button--warning)) { border-color: #e9ebec; }
+.drawer-footer :deep(.el-button:not(.el-button--warning):hover), .drawer-footer :deep(.el-button:not(.el-button--warning):focus-visible) { border-color: var(--cr-primary); color: var(--cr-primary); }
 </style>

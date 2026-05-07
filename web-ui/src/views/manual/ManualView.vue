@@ -14,18 +14,23 @@
         </div>
       </div>
       <div class="manual-hero__card">
-        <div class="hero-stat">
-          <span>适用对象</span>
-          <strong>管理员 / 项目 Owner / 项目成员</strong>
+        <div class="version-card-head">
+          <div class="version-card-title-group">
+            <h3 class="version-card-title">版本说明</h3>
+            <span class="current-version">当前版本：V1.1</span>
+          </div>
+          <button type="button" class="version-history-link" @click="historyDialogVisible = true">查看历史版本</button>
         </div>
-        <div class="hero-stat">
-          <span>阅读建议</span>
-          <strong>按目录逐步完成首次配置</strong>
-        </div>
-        <div class="hero-stat">
-          <span>核心流程</span>
-          <strong>建模型 → 建项目 → 配 Webhook → 触发审查 → 整改复审</strong>
-        </div>
+        <ul class="version-list">
+          <li>
+            <strong>V1.1</strong>
+            <ol>
+              <li>新增深度审查能力，自动拓展 Diff 周边上下文，帮助识别需要结合完整方法或组件逻辑才能判断的问题。</li>
+              <li>审查记录支持展示当前代码和建议修改代码，并提供类似编辑器的代码高亮效果。</li>
+              <li>上下文识别范围扩展到 Java、前端、Python、C++ 等常见项目类型。</li>
+            </ol>
+          </li>
+        </ul>
       </div>
     </header>
 
@@ -265,10 +270,27 @@
         </section>
       </main>
     </div>
+
+    <el-dialog v-model="historyDialogVisible" title="历史版本" width="620px" destroy-on-close class="version-history-dialog">
+      <ul class="version-list version-list--dialog">
+        <li>
+          <strong>V1.0</strong>
+          <ol>
+            <li>支持大模型配置管理，可维护模型供应商、模型参数、范围类型和启停状态。</li>
+            <li>支持项目配置、GitLab Webhook 接入、成员管理、AI 审查开关和通知回写配置。</li>
+            <li>提供审查记录、整改复审闭环和看板统计，便于跟踪项目审查质量和处理进度。</li>
+          </ol>
+        </li>
+      </ul>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
+
+const historyDialogVisible = ref(false);
+
 const sections = [
   { id: "overview", label: "开始前先了解这套系统" },
   { id: "webhook", label: "配置 GitLab 代码库 Webhook" },
@@ -392,28 +414,100 @@ const openSystemHome = () => {
   padding: 28px;
 }
 
-.hero-stat {
-  padding: 16px 18px;
+.version-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.version-card-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.current-version {
+  padding: 2px 8px;
+  border: 1px solid rgba(230, 162, 60, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 247, 230, 0.72);
+  color: #b96800;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.version-card-title {
+  margin: 0;
+  color: #2f231d;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.version-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.version-list > li {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(255, 247, 232, 0.9), rgba(255, 252, 247, 0.9));
   border: 1px solid rgba(230, 162, 60, 0.16);
 }
 
-.hero-stat span {
+.version-list strong {
   display: block;
-  color: rgba(67, 53, 43, 0.58);
+  color: var(--cr-primary);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.hero-stat strong {
-  display: block;
-  margin-top: 9px;
+.version-list ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.version-list ol li {
   color: #2f231d;
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.version-history-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--cr-primary);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.version-history-link:hover,
+.version-history-link:focus-visible {
+  color: var(--cr-primary-deep);
+}
+
+.version-list--dialog {
+  gap: 14px;
+}
+
+:deep(.version-history-dialog .el-dialog__title) {
+  color: #2f231d;
+  font-weight: 800;
 }
 
 .manual-shell {

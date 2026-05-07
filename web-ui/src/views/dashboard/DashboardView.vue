@@ -503,7 +503,7 @@ onBeforeUnmount(() => {
 
 .range-chip.active {
   background: var(--cr-surface-paper);
-  color: var(--cr-primary-deep);
+  color: var(--cr-primary);
   box-shadow: 0 8px 18px rgba(144, 77, 0, 0.06);
 }
 

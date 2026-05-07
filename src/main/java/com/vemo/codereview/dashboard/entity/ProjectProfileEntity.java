@@ -26,6 +26,7 @@ public class ProjectProfileEntity {
     private String supportedFileExtensions;
     private Long llmModelId;
     private Boolean aiReviewEnabled;
+    private Boolean reviewContextEnabled;
     private Boolean gitlabNoteEnabled;
     private Boolean wecomNotifyEnabled;
     private String wecomWebhookUrl;

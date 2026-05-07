@@ -5,12 +5,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.vemo.codereview.CodeReviewerApplication;
+import com.vemo.codereview.auth.service.AuthTokenService;
 import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewResultStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
+import com.vemo.codereview.user.entity.UserEntity;
+import com.vemo.codereview.user.mapper.UserMapper;
 import java.util.Date;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,13 +47,24 @@ class DashboardControllerTest {
     @Autowired
     private ReviewResultStoreMapper codeReviewResultMapper;
 
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private AuthTokenService authTokenService;
+
+    private String adminToken;
+
     @BeforeEach
-    void setUpData() {
+    void setUpData() throws Exception {
         codeReviewResultMapper.delete(null);
         codeReviewTaskMapper.delete(null);
         codeReviewEventMapper.delete(null);
+        userMapper.delete(null);
 
-        Date now = new Date();
+        adminToken = "Bearer " + authTokenService.createToken(createUser(1L, "admin", "ADMIN"));
+
+        Date now = new java.text.SimpleDateFormat("yyyy-MM-dd").parse("2026-04-03");
 
         CodeReviewEventEntity event = new CodeReviewEventEntity();
         event.setSourcePlatform("gitlab");
@@ -101,6 +115,7 @@ class DashboardControllerTest {
     @Test
     void shouldReturnReviewTaskPage() throws Exception {
         mockMvc.perform(get("/api/dashboard/review-tasks")
+                .header("Authorization", adminToken)
                 .param("pageNo", "1")
                 .param("pageSize", "10"))
             .andExpect(status().isOk())
@@ -114,7 +129,8 @@ class DashboardControllerTest {
 
     @Test
     void shouldReturnProjectStats() throws Exception {
-        mockMvc.perform(get("/api/dashboard/project-stats"))
+        mockMvc.perform(get("/api/dashboard/project-stats")
+                .header("Authorization", adminToken))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.totalProjects").value(1))
@@ -126,7 +142,8 @@ class DashboardControllerTest {
 
     @Test
     void shouldReturnDeveloperStats() throws Exception {
-        mockMvc.perform(get("/api/dashboard/developer-stats"))
+        mockMvc.perform(get("/api/dashboard/developer-stats")
+                .header("Authorization", adminToken))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.totalDevelopers").value(1))
@@ -139,6 +156,7 @@ class DashboardControllerTest {
     @Test
     void shouldReturnScoreStatsForDateRange() throws Exception {
         mockMvc.perform(get("/api/dashboard/score-stats")
+                .header("Authorization", adminToken)
                 .param("startDate", "2026-04-01")
                 .param("endDate", "2026-04-08"))
             .andExpect(status().isOk())
@@ -147,5 +165,19 @@ class DashboardControllerTest {
             .andExpect(jsonPath("$.data.averageFinalScore").value(76.0))
             .andExpect(jsonPath("$.data.projects[0].projectName").value("code-reviewer"))
             .andExpect(jsonPath("$.data.developers[0].developerName").value("alice"));
+    }
+
+    private UserEntity createUser(Long id, String username, String role) {
+        Date now = new Date();
+        UserEntity user = new UserEntity();
+        user.setId(id);
+        user.setUsername(username);
+        user.setPasswordHash("hash");
+        user.setDisplayName(username);
+        user.setRole(role);
+        user.setStatus("ENABLE");
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        return user;
     }
 }

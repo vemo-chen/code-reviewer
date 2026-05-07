@@ -57,6 +57,7 @@ public class ReviewTaskWorker {
     private final ProjectConfigService projectConfigService;
     private final ProjectTemplateResolverService projectTemplateResolverService;
     private final ReviewRuleService reviewRuleService;
+    private final ReviewContextEnrichmentService reviewContextEnrichmentService;
     private final ObjectMapper objectMapper;
 
     public ReviewTaskWorker(
@@ -76,6 +77,7 @@ public class ReviewTaskWorker {
         ProjectConfigService projectConfigService,
         ProjectTemplateResolverService projectTemplateResolverService,
         ReviewRuleService reviewRuleService,
+        ReviewContextEnrichmentService reviewContextEnrichmentService,
         ObjectMapper objectMapper) {
         this.codeReviewTaskMapper = codeReviewTaskMapper;
         this.reviewEventStoreMapper = reviewEventStoreMapper;
@@ -93,6 +95,7 @@ public class ReviewTaskWorker {
         this.projectConfigService = projectConfigService;
         this.projectTemplateResolverService = projectTemplateResolverService;
         this.reviewRuleService = reviewRuleService;
+        this.reviewContextEnrichmentService = reviewContextEnrichmentService;
         this.objectMapper = objectMapper;
     }
 
@@ -143,7 +146,8 @@ public class ReviewTaskWorker {
                 "openai-compatible",
                 llmResponse.getModel(),
                 reviewSummary,
-                llmResponse
+                llmResponse,
+                context
             );
             log.info("review result persisted. taskId={}, resultId={}, elapsedMs={}",
                 task.getId(), persistedResult.getId(), elapsedMs(workerStartNs));
@@ -242,6 +246,7 @@ public class ReviewTaskWorker {
             throw new DomainException("TASK_TYPE_UNSUPPORTED", "Unsupported review task type: " + task.getTaskType());
         }
         context.setMergeRequestChanges(changes);
+        reviewContextEnrichmentService.enrich(context, projectConfig, gitLabProjectId, gitLabProjectUrl, gitLabApiToken);
         return context;
     }
 

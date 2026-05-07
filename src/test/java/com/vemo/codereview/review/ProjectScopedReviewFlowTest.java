@@ -36,6 +36,7 @@ import com.vemo.codereview.review.service.ReviewRetryService;
 import com.vemo.codereview.review.service.ReviewRuleService;
 import com.vemo.codereview.review.service.ReviewScoreService;
 import com.vemo.codereview.review.service.ReviewStateService;
+import com.vemo.codereview.review.service.ReviewContextEnrichmentService;
 import com.vemo.codereview.review.service.ReviewTaskWorker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Arrays;
@@ -82,6 +83,8 @@ class ProjectScopedReviewFlowTest {
     private ProjectTemplateResolverService projectTemplateResolverService;
     @Mock
     private ReviewRuleService reviewRuleService;
+    @Mock
+    private ReviewContextEnrichmentService reviewContextEnrichmentService;
 
     private ReviewTaskWorker reviewTaskWorker;
 
@@ -104,6 +107,7 @@ class ProjectScopedReviewFlowTest {
             projectConfigService,
             projectTemplateResolverService,
             reviewRuleService,
+            reviewContextEnrichmentService,
             new ObjectMapper()
         );
     }
@@ -132,7 +136,13 @@ class ProjectScopedReviewFlowTest {
         when(promptBuilderService.build(any(ReviewExecutionContext.class))).thenReturn(reviewPromptPayload);
         when(llmGatewayService.review(eq(2001L), eq(reviewPromptPayload))).thenReturn(response);
         when(reviewResponseParser.parse(response)).thenReturn(reviewSummary);
-        when(reviewResultPersistenceService.persist(eq(1L), eq("openai-compatible"), eq("deepseek-chat"), eq(reviewSummary), eq(response)))
+        when(reviewResultPersistenceService.persist(
+            eq(1L),
+            eq("openai-compatible"),
+            eq("deepseek-chat"),
+            eq(reviewSummary),
+            eq(response),
+            any(ReviewExecutionContext.class)))
             .thenReturn(resultEntity);
         when(reviewCommentStoreMapper.selectList(any())).thenReturn(Collections.<CodeReviewCommentEntity>emptyList());
 
@@ -177,7 +187,13 @@ class ProjectScopedReviewFlowTest {
         when(promptBuilderService.build(any(ReviewExecutionContext.class))).thenReturn(reviewPromptPayload);
         when(llmGatewayService.review(eq(2001L), eq(reviewPromptPayload))).thenReturn(response);
         when(reviewResponseParser.parse(response)).thenReturn(reviewSummary);
-        when(reviewResultPersistenceService.persist(eq(1L), eq("openai-compatible"), eq("deepseek-chat"), eq(reviewSummary), eq(response)))
+        when(reviewResultPersistenceService.persist(
+            eq(1L),
+            eq("openai-compatible"),
+            eq("deepseek-chat"),
+            eq(reviewSummary),
+            eq(response),
+            any(ReviewExecutionContext.class)))
             .thenReturn(resultEntity);
         when(reviewCommentStoreMapper.selectList(any())).thenReturn(Arrays.asList(commentEntity));
 
@@ -223,7 +239,13 @@ class ProjectScopedReviewFlowTest {
         when(promptBuilderService.build(any(ReviewExecutionContext.class))).thenReturn(reviewPromptPayload);
         when(llmGatewayService.review(eq(2001L), eq(reviewPromptPayload))).thenReturn(response);
         when(reviewResponseParser.parse(response)).thenReturn(reviewSummary);
-        when(reviewResultPersistenceService.persist(eq(1L), eq("openai-compatible"), eq("deepseek-chat"), eq(reviewSummary), eq(response)))
+        when(reviewResultPersistenceService.persist(
+            eq(1L),
+            eq("openai-compatible"),
+            eq("deepseek-chat"),
+            eq(reviewSummary),
+            eq(response),
+            any(ReviewExecutionContext.class)))
             .thenReturn(resultEntity);
         when(reviewCommentStoreMapper.selectList(any())).thenReturn(Collections.<CodeReviewCommentEntity>emptyList());
         doThrow(new RuntimeException("event state mismatch")).when(reviewStateService).markEventProcessed(10L);

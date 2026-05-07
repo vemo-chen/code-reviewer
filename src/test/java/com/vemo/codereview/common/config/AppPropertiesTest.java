@@ -48,4 +48,14 @@ class AppPropertiesTest {
         assertEquals(7000, gitLabProperties.getConnectTimeoutMs());
         assertEquals(12000, gitLabProperties.getReadTimeoutMs());
     }
+
+    @Test
+    void shouldProvideDefaultReviewContextProperties() {
+        assertEquals(20, appProperties.getReviewContext().getMaxFiles());
+        assertEquals(204800, appProperties.getReviewContext().getMaxFileBytes());
+        assertEquals(60000, appProperties.getReviewContext().getMaxTotalChars());
+        assertEquals(30, appProperties.getReviewContext().getDefaultContextLines());
+        assertEquals(60, appProperties.getReviewContext().getHighRiskContextLines());
+        assertEquals(5, appProperties.getReviewContext().getMaxSnippetsPerFile());
+    }
 }

@@ -89,6 +89,18 @@ public class GitLabApiClient {
         return Arrays.asList(response);
     }
 
+    public String getRepositoryFileRaw(String baseUrl, Long projectId, String filePath, String ref, String token) {
+        Request request = new Request.Builder()
+            .url(resolveBaseUrl(baseUrl)
+                + "/api/v4/projects/" + projectId
+                + "/repository/files/" + encodeProjectPath(filePath)
+                + "/raw?ref=" + encodeQueryParam(ref))
+            .header("PRIVATE-TOKEN", resolveApiToken(token))
+            .get()
+            .build();
+        return executeText(request);
+    }
+
     public void createMergeRequestNote(String baseUrl, Long projectId, String mergeRequestIid,
                                        GitLabNoteRequest noteRequest, String token) {
         try {
@@ -165,6 +177,26 @@ public class GitLabApiClient {
         }
     }
 
+    private String executeText(Request request) {
+        try (Response response = okHttpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new DomainException(
+                    "GITLAB_API_ERROR",
+                    "GitLab API request failed. url=" + request.url()
+                        + ", status=" + response.code()
+                        + ", body=" + (response.body() == null ? "" : response.body().string())
+                );
+            }
+            if (response.body() == null) {
+                throw new DomainException("GITLAB_EMPTY_RESPONSE", "GitLab API response body is empty");
+            }
+            return response.body().string();
+        } catch (IOException ex) {
+            log.info("gitlab test error", ex);
+            throw new DomainException("GITLAB_API_ERROR", "Failed to call GitLab API");
+        }
+    }
+
     private String resolveBaseUrl(String baseUrl) {
         if (!StringUtils.hasText(baseUrl)) {
             throw new DomainException("GITLAB_BASE_URL_MISSING", "GitLab base URL is required");
@@ -185,6 +217,14 @@ public class GitLabApiClient {
             return URLEncoder.encode(projectPath, "UTF-8");
         } catch (Exception ex) {
             throw new DomainException("PROJECT_PATH_ENCODE_ERROR", "Failed to encode GitLab project path");
+        }
+    }
+
+    private String encodeQueryParam(String value) {
+        try {
+            return URLEncoder.encode(value, "UTF-8");
+        } catch (Exception ex) {
+            throw new DomainException("QUERY_PARAM_ENCODE_ERROR", "Failed to encode GitLab query parameter");
         }
     }
 

@@ -15,10 +15,10 @@
         </el-form-item>
         <el-form-item>
           <el-select v-model="queryForm.status" placeholder="请选择任务状态" clearable filterable>
-            <el-option label="PENDING" value="PENDING" />
-            <el-option label="RUNNING" value="RUNNING" />
-            <el-option label="SUCCESS" value="SUCCESS" />
-            <el-option label="FAILED" value="FAILED" />
+            <el-option label="待执行" value="PENDING" />
+            <el-option label="执行中" value="RUNNING" />
+            <el-option label="成功" value="SUCCESS" />
+            <el-option label="失败" value="FAILED" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -106,7 +106,7 @@
         <el-table-column label="任务状态" min-width="110">
           <template #default="{ row }">
             <span :class="['state-pill', taskStatusClass(row.status)]">
-              {{ row.status || "--" }}
+              {{ formatTaskStatus(row.status) }}
             </span>
           </template>
         </el-table-column>
@@ -163,7 +163,7 @@
       </div>
     </section>
 
-    <el-drawer v-model="detailVisible" size="680px" destroy-on-close :show-close="false" class="review-detail-drawer">
+    <el-drawer v-model="detailVisible" size="880px" destroy-on-close :show-close="false" class="review-detail-drawer">
       <template #header>
         <div class="drawer-header">
           <div class="drawer-header__title">
@@ -262,7 +262,7 @@
             <div class="compliance-head__main">
               <h5>合规性评估</h5>
               <div class="detail-meta">
-                <span :class="['state-pill', taskStatusClass(detail.status)]">{{ detail.status || "--" }}</span>
+                <span :class="['state-pill', taskStatusClass(detail.status)]">{{ formatTaskStatus(detail.status) }}</span>
                 <span :class="['state-pill', riskLevelClass(detail.riskLevel)]">{{ detail.riskLevel || "--" }}</span>
               </div>
             </div>
@@ -305,7 +305,35 @@
               </div>
               <p class="comment-location">{{ comment.filePath || "--" }}:{{ comment.lineNo || "--" }}</p>
               <p class="comment-body"><strong>问题：</strong>{{ comment.message }}</p>
+              <section v-if="comment.currentCode" class="code-pane code-pane--current">
+                <header>
+                  <span>当前代码</span>
+                  <el-select
+                    :model-value="resolveCodeLanguage(comment)"
+                    class="code-language-select"
+                    size="small"
+                    @change="setCodeLanguage(comment, $event)"
+                  >
+                    <el-option v-for="item in codeLanguageOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
+                </header>
+                <pre><code class="hljs" v-html="highlightCode(comment.currentCode, resolveCodeLanguage(comment))"></code></pre>
+              </section>
               <p class="suggestion"><strong>建议：</strong>{{ comment.suggestion || "暂无建议" }}</p>
+              <section v-if="comment.suggestedCode" class="code-pane code-pane--suggested">
+                <header>
+                  <span>建议修改</span>
+                  <el-select
+                    :model-value="resolveCodeLanguage(comment)"
+                    class="code-language-select"
+                    size="small"
+                    @change="setCodeLanguage(comment, $event)"
+                  >
+                    <el-option v-for="item in codeLanguageOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
+                </header>
+                <pre><code class="hljs" v-html="highlightCode(comment.suggestedCode, resolveCodeLanguage(comment))"></code></pre>
+              </section>
             </article>
           </div>
           <el-empty v-else description="暂无问题明细" />
@@ -339,6 +367,18 @@
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { CloseBold, RefreshRight } from "@element-plus/icons-vue";
+import hljs from "highlight.js/lib/core";
+import bash from "highlight.js/lib/languages/bash";
+import cpp from "highlight.js/lib/languages/cpp";
+import css from "highlight.js/lib/languages/css";
+import java from "highlight.js/lib/languages/java";
+import javascript from "highlight.js/lib/languages/javascript";
+import json from "highlight.js/lib/languages/json";
+import python from "highlight.js/lib/languages/python";
+import sql from "highlight.js/lib/languages/sql";
+import typescript from "highlight.js/lib/languages/typescript";
+import xml from "highlight.js/lib/languages/xml";
+import "highlight.js/styles/idea.css";
 import {
   approveFixReview,
   batchRetryReviewTask,
@@ -353,6 +393,17 @@ import {
 } from "../../api/dashboard";
 import { fetchProjects } from "../../api/projects";
 import { useAuthStore } from "../../stores/auth";
+
+hljs.registerLanguage("bash", bash);
+hljs.registerLanguage("cpp", cpp);
+hljs.registerLanguage("css", css);
+hljs.registerLanguage("java", java);
+hljs.registerLanguage("javascript", javascript);
+hljs.registerLanguage("json", json);
+hljs.registerLanguage("python", python);
+hljs.registerLanguage("sql", sql);
+hljs.registerLanguage("typescript", typescript);
+hljs.registerLanguage("xml", xml);
 
 interface ProjectItem {
   id: number;
@@ -389,6 +440,12 @@ interface ReviewCommentItem {
   category: string;
   message: string;
   suggestion: string;
+  currentCode?: string | null;
+  suggestedCode?: string | null;
+  codeStartLine?: number | null;
+  codeEndLine?: number | null;
+  evidenceType?: string | null;
+  confidence?: string | null;
   isPosted: boolean;
   createdAt: string | null;
 }
@@ -453,6 +510,22 @@ const records = ref<ReviewRecordItem[]>([]);
 const selectedRows = ref<ReviewRecordItem[]>([]);
 const detail = ref<ReviewTaskDetail | null>(null);
 const fixFlows = ref<ReviewFixFlowItem[]>([]);
+const selectedCodeLanguages = reactive<Record<number, string>>({});
+
+const codeLanguageOptions = [
+  { label: "自动", value: "auto" },
+  { label: "Java", value: "java" },
+  { label: "JavaScript", value: "javascript" },
+  { label: "TypeScript", value: "typescript" },
+  { label: "SQL", value: "sql" },
+  { label: "Python", value: "python" },
+  { label: "C++", value: "cpp" },
+  { label: "XML", value: "xml" },
+  { label: "JSON", value: "json" },
+  { label: "CSS", value: "css" },
+  { label: "Shell", value: "bash" },
+  { label: "纯文本", value: "plaintext" }
+];
 
 const hasSelection = computed(() => selectedRows.value.length > 0);
 const retryableSelectedRows = computed(() => selectedRows.value.filter((row) => canManualRetry(row.status)));
@@ -829,6 +902,23 @@ const formatFixStatus = (status: string | null | undefined) => {
   return "--";
 };
 
+const formatTaskStatus = (status: string | null | undefined) => {
+  const normalized = (status || "").toUpperCase();
+  if (normalized === "PENDING") {
+    return "待执行";
+  }
+  if (normalized === "RUNNING") {
+    return "执行中";
+  }
+  if (normalized === "SUCCESS") {
+    return "成功";
+  }
+  if (normalized === "FAILED") {
+    return "失败";
+  }
+  return "--";
+};
+
 const taskStatusClass = (status: string | null | undefined) => {
   const normalized = (status || "").toUpperCase();
   if (normalized === "SUCCESS") {
@@ -837,7 +927,10 @@ const taskStatusClass = (status: string | null | undefined) => {
   if (normalized === "FAILED") {
     return "is-danger";
   }
-  return "is-warning";
+  if (normalized === "RUNNING") {
+    return "is-processing";
+  }
+  return "is-neutral";
 };
 
 const fixStatusClass = (status: string | null | undefined) => {
@@ -849,7 +942,7 @@ const fixStatusClass = (status: string | null | undefined) => {
     return "is-danger";
   }
   if (normalized === "TO_BE_REVIEWED") {
-    return "is-warning";
+    return "is-processing";
   }
   if (normalized === "TO_BE_FIXED") {
     return "is-neutral";
@@ -869,6 +962,76 @@ const riskLevelClass = (riskLevel: string | null | undefined) => {
     return "is-success";
   }
   return "is-neutral";
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const detectCodeLanguage = (filePath: string | null | undefined) => {
+  const normalized = (filePath || "").toLowerCase();
+  if (/\.(java)$/.test(normalized)) {
+    return "java";
+  }
+  if (/\.(js|jsx|mjs|cjs)$/.test(normalized)) {
+    return "javascript";
+  }
+  if (/\.(ts|tsx)$/.test(normalized)) {
+    return "typescript";
+  }
+  if (/\.(sql)$/.test(normalized)) {
+    return "sql";
+  }
+  if (/\.(py)$/.test(normalized)) {
+    return "python";
+  }
+  if (/\.(cpp|cc|cxx|c\+\+|hpp|hh|hxx|h)$/.test(normalized)) {
+    return "cpp";
+  }
+  if (/\.(xml|html|vue)$/.test(normalized)) {
+    return "xml";
+  }
+  if (/\.(json)$/.test(normalized)) {
+    return "json";
+  }
+  if (/\.(css|scss|less)$/.test(normalized)) {
+    return "css";
+  }
+  if (/\.(sh|bash|zsh|bat|cmd|ps1)$/.test(normalized)) {
+    return "bash";
+  }
+  return "auto";
+};
+
+const resolveCodeLanguage = (comment: ReviewCommentItem) => {
+  if (comment.id != null && selectedCodeLanguages[comment.id]) {
+    return selectedCodeLanguages[comment.id];
+  }
+  return detectCodeLanguage(comment.filePath);
+};
+
+const setCodeLanguage = (comment: ReviewCommentItem, language: string) => {
+  if (comment.id == null) {
+    return;
+  }
+  selectedCodeLanguages[comment.id] = language;
+};
+
+const highlightCode = (value: string | null | undefined, language: string) => {
+  if (!value) {
+    return "";
+  }
+  if (language && language !== "auto" && language !== "plaintext" && hljs.getLanguage(language)) {
+    return hljs.highlight(value, { language, ignoreIllegals: true }).value;
+  }
+  if (language === "auto") {
+    return hljs.highlightAuto(value).value;
+  }
+  return escapeHtml(value);
 };
 
 onMounted(async () => {
@@ -970,7 +1133,35 @@ onMounted(async () => {
 .action-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+.action-group :deep(.el-button.is-link) {
+  height: 22px;
+  min-height: 22px;
+  margin-left: 0;
+  padding: 0 7px;
+  border: 1px solid #e9ebec;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #303133;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.action-group :deep(.el-button.is-link:hover),
+.action-group :deep(.el-button.is-link:focus-visible) {
+  border-color: var(--cr-primary);
+  background: rgba(255, 140, 0, 0.06);
+  color: var(--cr-primary);
+}
+
+.action-group :deep(.el-button.is-link.is-disabled) {
+  border-color: #e9ebec;
+  background: #ffffff;
+  color: rgba(86, 67, 52, 0.34);
 }
 
 .pagination-bar {
@@ -1056,13 +1247,16 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 72px;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  min-width: 0;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 7px;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .state-pill--hero {
@@ -1074,28 +1268,41 @@ onMounted(async () => {
 }
 
 .state-pill.is-success {
-  background: rgba(37, 141, 83, 0.14);
-  color: #167a43;
+  color: #389e0d;
+  border-color: #b7eb8f;
+  background: #f6ffed;
 }
 
 .state-pill.is-warning {
-  background: rgba(255, 140, 0, 0.16);
   color: var(--cr-primary-deep);
+  border-color: #ffd591;
+  background: #fff7e6;
+}
+
+.state-pill.is-processing {
+  color: #0958d9;
+  border-color: #91caff;
+  background: #e6f4ff;
 }
 
 .state-pill.is-danger {
-  background: rgba(220, 55, 55, 0.14);
   color: #b32222;
+  border-color: #ffccc7;
+  background: #fff2f0;
 }
 
 .state-pill.is-neutral {
-  background: rgba(26, 28, 25, 0.08);
-  color: rgba(26, 28, 25, 0.64);
+  color: #606266;
+  border-color: #e9ebec;
+  background: #ffffff;
 }
 
 .detail-drawer {
   display: grid;
   gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   padding: 6px 2px 28px;
 }
 
@@ -1104,6 +1311,16 @@ onMounted(async () => {
   padding: 14px 20px 12px;
   border-bottom: 1px solid #ebeef5;
   background: rgba(255, 255, 255, 0.96);
+}
+
+:deep(.review-detail-drawer .el-drawer__body) {
+  overflow-x: hidden;
+}
+
+:deep(.review-detail-drawer .el-drawer__container),
+:deep(.review-detail-drawer .el-drawer),
+:deep(.review-detail-drawer .el-drawer__body) {
+  max-width: 100vw;
 }
 
 .drawer-header {
@@ -1194,7 +1411,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #ebeef5;
+  border: 1px solid #e9ebec;
   border-radius: 9px;
   background: #ffffff;
   color: rgba(96, 98, 102, 0.9);
@@ -1387,6 +1604,9 @@ onMounted(async () => {
 }
 
 .detail-section {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   border-radius: 10px;
   background: #f8fafc;
   padding: 16px;
@@ -1739,9 +1959,14 @@ onMounted(async () => {
 .comment-list {
   display: grid;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .comment-card {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   border-radius: 10px;
   background: var(--cr-surface-paper);
   padding: 14px;
@@ -1784,7 +2009,81 @@ onMounted(async () => {
 }
 
 .suggestion {
-  margin-top: 8px;
+  margin-top: 14px;
+}
+
+.code-pane {
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid #dfe5ef;
+  border-radius: 8px;
+  background: #f9fafc;
+}
+
+.code-pane header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 28px;
+  padding: 0 12px;
+  border-bottom: 1px solid #dfe5ef;
+  background: #f2f5f9;
+  color: #5f6b7a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.code-language-select {
+  width: 118px;
+  flex: 0 0 118px;
+}
+
+.code-language-select :deep(.el-select__wrapper) {
+  min-height: 24px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 0 0 1px rgba(190, 199, 214, 0.78) inset;
+}
+
+.code-pane--suggested header {
+  background: #eef8f1;
+  color: #237a3b;
+}
+
+.code-pane--current {
+  margin-bottom: 14px;
+}
+
+.code-pane pre {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  background: #ffffff;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  tab-size: 2;
+  white-space: pre;
+}
+
+.code-pane .hljs {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  background: #ffffff;
+  color: #1f2328;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.7;
 }
 
 .batch-bar-enter-active,

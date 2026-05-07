@@ -5,7 +5,10 @@
         <div class="logo-wrap topbar-logo">
           <img :src="brandLogo" alt="Code Reviewer logo" />
         </div>
-        <div class="topbar-title">Code Reviewer</div>
+        <div class="topbar-title">
+          <span>Code Reviewer</span>
+          <em>v1.1</em>
+        </div>
       </div>
 
       <div class="topbar-actions">
@@ -267,10 +270,34 @@ const openManual = () => {
 }
 
 .topbar-title {
-  color: var(--cr-text);
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-title span {
+  padding: 6px 12px;
+  border: 1px solid rgba(230, 162, 60, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 247, 230, 0.64);
+  color: #7a4200;
+  font-size: 17px;
   font-weight: 800;
   letter-spacing: 0;
+  line-height: 22px;
+}
+
+.topbar-title em {
+  padding: 2px 8px;
+  border: 1px solid rgba(230, 162, 60, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 247, 230, 0.76);
+  color: #b96800;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 18px;
 }
 
 .topbar-actions {

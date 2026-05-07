@@ -64,7 +64,7 @@
         </el-table-column>
         <el-table-column label="范围类型" min-width="110">
           <template #default="{ row }">
-            <span :class="['status-pill', row.scopeType === 'GLOBAL' ? 'is-primary' : 'is-neutral']">
+            <span :class="['status-pill', row.scopeType === 'GLOBAL' ? 'is-accent' : 'is-neutral']">
               {{ row.scopeType === "GLOBAL" ? "公共模型" : "项目私有" }}
             </span>
           </template>
@@ -802,47 +802,82 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   flex-wrap: nowrap;
+  gap: 10px;
+}
+
+.table-actions :deep(.el-button.is-link) {
+  height: 22px;
+  min-height: 22px;
+  margin-left: 0;
+  padding: 0 7px;
+  border: 1px solid #e9ebec;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #303133;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.table-actions :deep(.el-button.is-link:hover),
+.table-actions :deep(.el-button.is-link:focus-visible) {
+  border-color: var(--cr-primary);
+  background: rgba(255, 140, 0, 0.06);
+  color: var(--cr-primary);
+}
+
+.table-actions :deep(.el-button.is-link.is-disabled) {
+  border-color: #e9ebec;
+  background: #ffffff;
+  color: rgba(86, 67, 52, 0.34);
 }
 
 .table-actions :deep(.el-dropdown) {
   display: inline-flex;
   align-items: center;
-  margin-left: 12px;
+  margin-left: 0;
 }
 
 .more-actions-trigger {
-  padding: 0;
-  min-height: auto;
-  color: var(--cr-text-soft);
-  font-size: 13px;
-  font-weight: 600;
   white-space: nowrap;
 }
 
 .more-actions-trigger:hover,
 .more-actions-trigger:focus-visible {
-  color: var(--cr-primary-deep);
+  color: var(--cr-primary);
 }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 72px;
-  padding: 6px 12px;
-  border-radius: 999px;
+  min-width: 0;
+  padding: 0 7px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: #ffffff;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
+  line-height: 20px;
 }
 
 .is-primary {
-  background: rgba(255, 140, 0, 0.12);
-  color: var(--cr-primary-deep);
+  color: #389e0d;
+  border-color: #b7eb8f;
+  background: #f6ffed;
+}
+
+.is-accent {
+  color: #d46b08;
+  border-color: #ffd591;
+  background: #fff7e6;
 }
 
 .is-neutral {
-  background: rgba(118, 118, 118, 0.12);
-  color: #5f5f5f;
+  color: #606266;
+  border-color: #e9ebec;
+  background: #ffffff;
 }
 
 .pagination-bar {
@@ -866,6 +901,20 @@ onMounted(() => {
 
 .page-size-select {
   width: 116px;
+}
+
+:deep(.llm-drawer .el-drawer__close-btn) {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #e9ebec;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+:deep(.llm-drawer .el-drawer__close-btn:hover),
+:deep(.llm-drawer .el-drawer__close-btn:focus-visible) {
+  border-color: var(--cr-primary);
+  color: var(--cr-primary);
 }
 
 .drawer-body {
@@ -939,6 +988,16 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 12px;
   padding-top: 20px;
+}
+
+.drawer-footer :deep(.el-button:not(.el-button--warning)) {
+  border-color: #e9ebec;
+}
+
+.drawer-footer :deep(.el-button:not(.el-button--warning):hover),
+.drawer-footer :deep(.el-button:not(.el-button--warning):focus-visible) {
+  border-color: var(--cr-primary);
+  color: var(--cr-primary);
 }
 
 @media (max-width: 900px) {

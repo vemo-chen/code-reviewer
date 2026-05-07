@@ -14,9 +14,11 @@ import com.vemo.codereview.dashboard.model.ReviewTaskQueryRequest;
 import com.vemo.codereview.dashboard.model.ScoreStatsResponse;
 import com.vemo.codereview.project.service.ProjectPermissionService;
 import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
+import com.vemo.codereview.review.entity.CodeReviewCommentCodeSnapshotEntity;
 import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
+import com.vemo.codereview.review.mapper.ReviewCommentCodeSnapshotMapper;
 import com.vemo.codereview.review.mapper.ReviewCommentStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewResultStoreMapper;
@@ -53,6 +55,7 @@ public class DashboardQueryService {
     private final ReviewEventStoreMapper codeReviewEventMapper;
     private final ReviewResultStoreMapper codeReviewResultMapper;
     private final ReviewCommentStoreMapper codeReviewCommentMapper;
+    private final ReviewCommentCodeSnapshotMapper codeSnapshotMapper;
     private final ProjectPermissionService projectPermissionService;
     private final ProjectProfileMapper projectProfileMapper;
     private final UserProjectRelMapper userProjectRelMapper;
@@ -64,6 +67,7 @@ public class DashboardQueryService {
         ReviewEventStoreMapper codeReviewEventMapper,
         ReviewResultStoreMapper codeReviewResultMapper,
         ReviewCommentStoreMapper codeReviewCommentMapper,
+        ReviewCommentCodeSnapshotMapper codeSnapshotMapper,
         ProjectPermissionService projectPermissionService,
         ProjectProfileMapper projectProfileMapper,
         UserProjectRelMapper userProjectRelMapper,
@@ -73,6 +77,7 @@ public class DashboardQueryService {
         this.codeReviewEventMapper = codeReviewEventMapper;
         this.codeReviewResultMapper = codeReviewResultMapper;
         this.codeReviewCommentMapper = codeReviewCommentMapper;
+        this.codeSnapshotMapper = codeSnapshotMapper;
         this.projectPermissionService = projectPermissionService;
         this.projectProfileMapper = projectProfileMapper;
         this.userProjectRelMapper = userProjectRelMapper;
@@ -219,12 +224,30 @@ public class DashboardQueryService {
             item.setCategory(comment.getCategory());
             item.setMessage(comment.getMessage());
             item.setSuggestion(comment.getSuggestion());
+            CodeReviewCommentCodeSnapshotEntity snapshot = findSnapshot(comment.getId());
+            if (snapshot != null) {
+                item.setCurrentCode(snapshot.getCurrentCode());
+                item.setSuggestedCode(snapshot.getSuggestedCode());
+                item.setCodeStartLine(snapshot.getStartLine());
+                item.setCodeEndLine(snapshot.getEndLine());
+                item.setEvidenceType(snapshot.getEvidenceType());
+                item.setConfidence(snapshot.getConfidence());
+            }
             item.setIsPosted(comment.getIsPosted());
             item.setCreatedAt(comment.getCreatedAt());
             commentItems.add(item);
         }
         response.setComments(commentItems);
         return response;
+    }
+
+    private CodeReviewCommentCodeSnapshotEntity findSnapshot(Long commentId) {
+        if (commentId == null) {
+            return null;
+        }
+        QueryWrapper<CodeReviewCommentCodeSnapshotEntity> wrapper = new QueryWrapper<CodeReviewCommentCodeSnapshotEntity>();
+        wrapper.eq("comment_id", commentId).last("limit 1");
+        return codeSnapshotMapper.selectOne(wrapper);
     }
 
 

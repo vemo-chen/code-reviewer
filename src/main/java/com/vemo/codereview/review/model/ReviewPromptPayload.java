@@ -19,5 +19,10 @@ public class ReviewPromptPayload {
         private String filePath;
         private String changeType;
         private List<String> diffChunks;
+        private String contextStatus;
+        private String skipReason;
+        private List<String> riskHints;
+        private List<ReviewCodeSnippet> contextSnippets;
+        private Boolean contextTruncated;
     }
 }

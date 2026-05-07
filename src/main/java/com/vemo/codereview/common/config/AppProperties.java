@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class AppProperties {
 
     private Async async = new Async();
+    private ReviewContext reviewContext = new ReviewContext();
 
     public Async getAsync() {
         return async;
@@ -13,6 +14,14 @@ public class AppProperties {
 
     public void setAsync(Async async) {
         this.async = async;
+    }
+
+    public ReviewContext getReviewContext() {
+        return reviewContext;
+    }
+
+    public void setReviewContext(ReviewContext reviewContext) {
+        this.reviewContext = reviewContext;
     }
 
     public static class Async {
@@ -51,6 +60,63 @@ public class AppProperties {
 
         public void setThreadNamePrefix(String threadNamePrefix) {
             this.threadNamePrefix = threadNamePrefix;
+        }
+    }
+
+    public static class ReviewContext {
+        private int maxFiles = 20;
+        private int maxFileBytes = 204800;
+        private int maxTotalChars = 60000;
+        private int defaultContextLines = 30;
+        private int highRiskContextLines = 60;
+        private int maxSnippetsPerFile = 5;
+
+        public int getMaxFiles() {
+            return maxFiles;
+        }
+
+        public void setMaxFiles(int maxFiles) {
+            this.maxFiles = maxFiles;
+        }
+
+        public int getMaxFileBytes() {
+            return maxFileBytes;
+        }
+
+        public void setMaxFileBytes(int maxFileBytes) {
+            this.maxFileBytes = maxFileBytes;
+        }
+
+        public int getMaxTotalChars() {
+            return maxTotalChars;
+        }
+
+        public void setMaxTotalChars(int maxTotalChars) {
+            this.maxTotalChars = maxTotalChars;
+        }
+
+        public int getDefaultContextLines() {
+            return defaultContextLines;
+        }
+
+        public void setDefaultContextLines(int defaultContextLines) {
+            this.defaultContextLines = defaultContextLines;
+        }
+
+        public int getHighRiskContextLines() {
+            return highRiskContextLines;
+        }
+
+        public void setHighRiskContextLines(int highRiskContextLines) {
+            this.highRiskContextLines = highRiskContextLines;
+        }
+
+        public int getMaxSnippetsPerFile() {
+            return maxSnippetsPerFile;
+        }
+
+        public void setMaxSnippetsPerFile(int maxSnippetsPerFile) {
+            this.maxSnippetsPerFile = maxSnippetsPerFile;
         }
     }
 }

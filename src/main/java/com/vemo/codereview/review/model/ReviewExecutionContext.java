@@ -1,6 +1,7 @@
 package com.vemo.codereview.review.model;
 
 import com.vemo.codereview.platform.gitlab.model.GitLabChangesPayload;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,5 +17,10 @@ public class ReviewExecutionContext {
     private String targetId;
     private String targetTitle;
     private String targetType;
+    private String sourceRef;
+    private String targetRef;
+    private String headSha;
     private GitLabChangesPayload mergeRequestChanges;
+    private List<ReviewFileContext> fileContexts;
+    private ReviewContextStats contextStats;
 }

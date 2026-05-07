@@ -54,7 +54,7 @@
         </el-table-column>
         <el-table-column label="角色" min-width="120">
           <template #default="{ row }">
-            <span :class="['status-pill', row.role === 'ADMIN' ? 'is-primary' : 'is-neutral']">
+            <span :class="['status-pill', row.role === 'ADMIN' ? 'is-accent' : 'is-neutral']">
               {{ row.role === "ADMIN" ? "管理员" : "普通用户" }}
             </span>
           </template>
@@ -586,33 +586,73 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+}
+
+.action-group :deep(.el-button.is-link) {
+  height: 22px;
+  min-height: 22px;
+  margin-left: 0;
+  padding: 0 7px;
+  border: 1px solid #e9ebec;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #303133;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.action-group :deep(.el-button.is-link:hover),
+.action-group :deep(.el-button.is-link:focus-visible) {
+  border-color: var(--cr-primary);
+  background: rgba(255, 140, 0, 0.06);
+  color: var(--cr-primary);
+}
+
+.action-group :deep(.el-button.is-link.is-disabled) {
+  border-color: #e9ebec;
+  background: #ffffff;
+  color: rgba(86, 67, 52, 0.34);
 }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 68px;
-  padding: 6px 12px;
-  border-radius: 999px;
+  min-width: 0;
+  padding: 0 7px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: #ffffff;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
+  line-height: 20px;
 }
 
 .is-primary {
-  background: rgba(255, 140, 0, 0.12);
-  color: var(--cr-primary-deep);
+  color: #389e0d;
+  border-color: #b7eb8f;
+  background: #f6ffed;
+}
+
+.is-accent {
+  color: #d46b08;
+  border-color: #ffd591;
+  background: #fff7e6;
 }
 
 .is-neutral {
-  background: rgba(118, 118, 118, 0.12);
-  color: #5f5f5f;
+  color: #606266;
+  border-color: #e9ebec;
+  background: #ffffff;
 }
 
 .is-danger {
-  background: rgba(215, 73, 73, 0.12);
-  color: #c24e4e;
+  color: #b32222;
+  border-color: #ffccc7;
+  background: #fff2f0;
 }
 
 .pagination-bar {
@@ -682,7 +722,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #ebeef5;
+  border: 1px solid #e9ebec;
   border-radius: 9px;
   background: #ffffff;
   color: rgba(96, 98, 102, 0.9);

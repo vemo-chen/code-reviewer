@@ -50,6 +50,12 @@ public class ReviewTaskDetailResponse {
         private String category;
         private String message;
         private String suggestion;
+        private String currentCode;
+        private String suggestedCode;
+        private Integer codeStartLine;
+        private Integer codeEndLine;
+        private String evidenceType;
+        private String confidence;
         private Boolean isPosted;
         private Date createdAt;
     }
