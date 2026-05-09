@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS code_review_task (
     finished_at DATETIME,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
-    UNIQUE KEY uk_review_task_project_type_target (project_id, task_type, target_id),
+    KEY idx_review_task_project_type_target (project_id, task_type, target_id),
     KEY idx_review_task_event (event_id),
     KEY idx_review_task_status (status),
     KEY idx_review_task_project (project_id),

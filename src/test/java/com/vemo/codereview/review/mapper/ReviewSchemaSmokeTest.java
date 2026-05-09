@@ -122,4 +122,58 @@ class ReviewSchemaSmokeTest {
         assertEquals(batch.getId(), savedRel.getBatchId());
         assertEquals(task.getId(), savedRel.getTaskId());
     }
+
+    @Test
+    void shouldAllowMultipleMergeRequestTasksWithSameTargetId() {
+        Date now = new Date();
+
+        CodeReviewEventEntity firstEvent = buildMergeRequestEvent("mr-event-1", now);
+        assertEquals(1, codeReviewEventMapper.insert(firstEvent));
+
+        CodeReviewTaskEntity firstTask = buildMergeRequestTask(firstEvent.getId(), "1", "Initial merge request", now);
+        assertEquals(1, codeReviewTaskMapper.insert(firstTask));
+
+        CodeReviewEventEntity secondEvent = buildMergeRequestEvent("mr-event-2", now);
+        assertEquals(1, codeReviewEventMapper.insert(secondEvent));
+
+        CodeReviewTaskEntity secondTask = buildMergeRequestTask(secondEvent.getId(), "1", "Updated merge request", now);
+        assertEquals(1, codeReviewTaskMapper.insert(secondTask));
+
+        assertNotNull(firstTask.getId());
+        assertNotNull(secondTask.getId());
+    }
+
+    private CodeReviewEventEntity buildMergeRequestEvent(String idempotentKey, Date now) {
+        CodeReviewEventEntity event = new CodeReviewEventEntity();
+        event.setSourcePlatform("gitlab");
+        event.setEventType("merge_request");
+        event.setProjectId(1001L);
+        event.setProjectName("code-reviewer");
+        event.setObjectId(idempotentKey);
+        event.setObjectType("merge_request");
+        event.setOperatorId("u001");
+        event.setOperatorName("alice");
+        event.setSubmitTime(now);
+        event.setIdempotentKey(idempotentKey);
+        event.setPayloadJson("{\"object_kind\":\"merge_request\"}");
+        event.setStatus("PENDING");
+        event.setCreatedAt(now);
+        event.setUpdatedAt(now);
+        return event;
+    }
+
+    private CodeReviewTaskEntity buildMergeRequestTask(Long eventId, String targetId, String targetTitle, Date now) {
+        CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setEventId(eventId);
+        task.setTaskType("MR_REVIEW");
+        task.setSourcePlatform("gitlab");
+        task.setProjectId(1001L);
+        task.setTargetId(targetId);
+        task.setTargetTitle(targetTitle);
+        task.setStatus("PENDING");
+        task.setRetryCount(0);
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        return task;
+    }
 }
