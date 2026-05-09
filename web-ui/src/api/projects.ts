@@ -66,4 +66,27 @@ export const updateProject = (id: number, payload: ProjectUpsertPayload) =>
 
 export const deleteProject = (id: number) => http.delete(`/projects/${id}`);
 
+export interface ProjectCustomReviewBatchPayload {
+  startTime: string;
+  endTime: string;
+  reviewMode: "SKIP_REVIEWED" | "FORCE_REREVIEW";
+  reviewBranches?: string[];
+}
+
+export interface ProjectCustomReviewBatchResponse {
+  batchId: number;
+  totalCommitCount: number;
+  createdTaskCount: number;
+  retriedTaskCount: number;
+  skippedReviewedCount: number;
+  skippedRunningCount: number;
+  skippedFailedCount: number;
+  failedCount: number;
+}
+
+export const createProjectCustomReviewBatch = (
+  id: number,
+  payload: ProjectCustomReviewBatchPayload
+) => http.post(`/projects/${id}/custom-review-batches`, payload);
+
 export const refreshProject = (id: number) => http.post(`/projects/${id}/refresh`);

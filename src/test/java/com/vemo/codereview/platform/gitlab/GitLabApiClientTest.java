@@ -7,6 +7,7 @@ import com.vemo.codereview.common.config.GitLabProperties;
 import com.vemo.codereview.platform.gitlab.model.GitLabBranchPayload;
 import com.vemo.codereview.platform.gitlab.client.GitLabApiClient;
 import com.vemo.codereview.platform.gitlab.model.GitLabChangesPayload;
+import com.vemo.codereview.platform.gitlab.model.GitLabCommitPayload;
 import com.vemo.codereview.platform.gitlab.model.GitLabCommitNoteRequest;
 import com.vemo.codereview.platform.gitlab.model.GitLabNoteRequest;
 import com.vemo.codereview.platform.gitlab.model.GitLabProjectPayload;
@@ -164,6 +165,31 @@ class GitLabApiClientTest {
             request.getPath());
         assertEquals("gitlab-access-token", request.getHeader("PRIVATE-TOKEN"));
         assertEquals("public class App {}", content);
+    }
+
+    @Test
+    void shouldListRepositoryCommitsWithBranchAndTimeRange() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("[{\"id\":\"abcdef123456\",\"title\":\"Fix auth bug\",\"message\":\"Fix auth bug\\n\\nmore\",\"author_name\":\"alice\",\"committed_date\":\"2026-05-09T10:00:00+08:00\",\"web_url\":\"http://gitlab.example.com/group/repo/-/commit/abcdef123456\"}]"));
+
+        List<GitLabCommitPayload> commits = gitLabApiClient.listRepositoryCommits(
+            mockWebServer.url("").toString(),
+            1001L,
+            "feature/custom review",
+            "2026-05-01T00:00:00+08:00",
+            "2026-05-09T23:59:59+08:00",
+            "gitlab-access-token"
+        );
+
+        RecordedRequest request = mockWebServer.takeRequest();
+        assertEquals("/api/v4/projects/1001/repository/commits?ref_name=feature%2Fcustom+review&since=2026-05-01T00%3A00%3A00%2B08%3A00&until=2026-05-09T23%3A59%3A59%2B08%3A00&per_page=100",
+            request.getPath());
+        assertEquals("gitlab-access-token", request.getHeader("PRIVATE-TOKEN"));
+        assertEquals(1, commits.size());
+        assertEquals("abcdef123456", commits.get(0).getId());
+        assertEquals("Fix auth bug", commits.get(0).getTitle());
+        assertEquals("alice", commits.get(0).getAuthorName());
     }
 
     @Test

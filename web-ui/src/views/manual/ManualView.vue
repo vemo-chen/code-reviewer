@@ -5,7 +5,7 @@
         <p class="manual-kicker">Code Reviewer</p>
         <h1>用户手册</h1>
         <p class="manual-lead">
-          面向使用者的使用说明。这里不讲技术实现，只帮助你快速了解、完成配置、审查和整改闭环。
+          面向使用者的操作说明。这里不讲底层实现，只帮助你快速完成模型配置、项目接入、审查查看和整改闭环。
         </p>
         <div class="manual-hero__actions">
           <a href="#webhook" class="hero-link">从 GitLab Webhook 开始</a>
@@ -17,17 +17,17 @@
         <div class="version-card-head">
           <div class="version-card-title-group">
             <h3 class="version-card-title">版本说明</h3>
-            <span class="current-version">当前版本：V1.1</span>
+            <span class="current-version">当前版本：V1.2</span>
           </div>
           <button type="button" class="version-history-link" @click="historyDialogVisible = true">查看历史版本</button>
         </div>
         <ul class="version-list">
           <li>
-            <strong>V1.1</strong>
+            <strong>V1.2</strong>
             <ol>
-              <li>新增深度审查能力，自动拓展 Diff 周边上下文，帮助识别需要结合完整方法或组件逻辑才能判断的问题。</li>
-              <li>审查记录支持展示当前代码和建议修改代码，并提供类似编辑器的代码高亮效果。</li>
-              <li>上下文识别范围扩展到 Java、前端、Python、C++ 等常见项目类型。</li>
+              <li>项目管理新增“更多 -&gt; 自定义审查”，支持按提交时间区间批量审查 commit，并提供“跳过已审查 / 强制重审”两种处理方式。</li>
+              <li>审查记录补齐提交时间与任务创建时间，并按提交时间倒序展示，便于按真实代码提交顺序回看任务。</li>
+              <li>操作入口进一步收敛到轻量“更多”菜单，自定义审查仅对管理员和项目 Owner 可见。</li>
             </ol>
           </li>
         </ul>
@@ -50,42 +50,27 @@
             <p class="section-index">01</p>
             <div>
               <h2>开始前先了解这套系统</h2>
-              <p>Code Reviewer 是一个基于大模型的自动化代码审查平台。用来帮助开发团队在代码合并或提交时，快速进行智能化的审查(Code Review)，提升代码质量。</p>
-              <p>主要围绕“自动审查”和“整改闭环”两件事展开。</p>
+              <p>Code Reviewer 是一套基于大模型的自动化代码审查平台，用于在代码提交或合并请求阶段快速完成智能审查。</p>
+              <p>系统主要围绕“自动审查”和“整改闭环”两件事展开。</p>
             </div>
           </div>
           <div class="content-card">
             <h4>功能说明</h4>
             <ul class="manual-list">
-              <li>🚀 多模型支持 <span style="color:red;">（当前版本仅支持DeepSeek、其他厂商需要做一定适配）</span> </li>
-              <ul>
-                <li>兼容 DeepSeek、ZhipuAI、OpenAI、Anthropic、通义千问 和 Ollama，想用哪个就用哪个。</li>
-              </ul>
-              <li>🎭 项目级别的配置</li>
-              <ul>
-                <li>支持项目级 Prompt、模型、通知、Webhook Token 等独立配置。</li>
-              </ul>
-              <li>📅 CR评审功能、整改闭环</li>
-              <ul>
-                <li>支持项目级 智能审查结果整改情况闭环，包括提交复审、审批等。</li>
-              </ul>
-              <li>📢 消息即时推送</li>
-              <ul>
-                <li>审查结果一键直达 企业微信</li>
-              </ul>
-              <li>📊 可视化 Dashboard</li>
-              <ul>
-                <li>集中展示所有 Code Review 记录，项目统计、开发者统计</li>
-              </ul>
+              <li>多模型支持：当前已兼容 DeepSeek、ZhipuAI、OpenAI、Anthropic、通义千问和 Ollama。</li>
+              <li>项目级配置：支持项目独立配置 Prompt、模型、Webhook Token、通知方式和审查分支。</li>
+              <li>审查与整改闭环：支持审查结果查看、整改提交、Owner 复审和通过 / 驳回。</li>
+              <li>消息通知：审查结果可按项目配置推送至企业微信。</li>
+              <li>可视化看板：集中展示项目、开发者和审查质量相关统计。</li>
             </ul>
             <h4>职责说明</h4>
             <ul class="manual-list">
-              <li>🤵 管理员通常负责配置大模型、创建项目、分配成员、指定项目 Owner。</li>
-              <li>🤵 当然，你也可以创建项目，作为项目 Owner，分配成员，负责审核整改结果，决定审查通过或驳回。</li>
-              <li>🤵 项目成员负责查看审查结果、修改代码并提交复审。</li>
+              <li>管理员通常负责维护大模型、创建项目、分配成员和指定项目 Owner。</li>
+              <li>项目 Owner 负责本项目配置维护、整改复审以及自定义审查等管理动作。</li>
+              <li>项目成员负责查看审查结果、修复代码并提交复审。</li>
             </ul>
             <div class="manual-note">
-              首次使用时，推荐先完成“大模型配置”和“项目配置”，再去 GitLab 项目里设置 Webhook。
+              首次使用时，建议先完成“大模型配置”和“项目配置”，再到 GitLab 项目中接入 Webhook。
             </div>
           </div>
         </section>
@@ -95,27 +80,21 @@
             <p class="section-index">02</p>
             <div>
               <h2>配置 GitLab 代码库 Webhook</h2>
-              <p>让 GitLab 在提交代码或更新合并请求时，自动通知 Code Reviewer。</p>
+              <p>让 GitLab 在 push 代码或更新 Merge Request 时，自动通知 Code Reviewer。</p>
             </div>
           </div>
           <div class="content-card">
             <ol class="manual-steps">
-              <li>创建Access Token</li>
-              <ul>
-                <li>方法一：在 GitLab 个人设置中，创建一个 Personal Access Token。</li>
-                <li>方法二：在 GitLab 项目设置中，创建Project Access Token</li>
-              </ul>
-
-              <li>配置 Webhook</li>
-              <ul>
-                <li>进入 GitLab 对应项目，打开 <strong>Settings / Integrations</strong>。</li>
-                <li>在 URL 填写系统提供的 Webhook 地址，一般是 <code>/api/webhooks/gitlab</code>; 当前环境是<code>http://10.12.8.132:8765/api/webhooks/gitlab</code>。</li>
-                <li>在 Secret Token 中填写系统要求的<strong> Access Token</strong>。若项目已配置项目级 Token，则优先使用项目级 Token。</li>
-                <li>勾选你希望触发的事件，至少建议开启 <strong>Push events</strong> 和 <strong>Merge request events</strong>。</li>
-              </ul>
+              <li>创建 Access Token。
+                <span class="inline-note">可以使用个人 Token，也可以使用项目级 Token。</span>
+              </li>
+              <li>进入 GitLab 对应项目，打开 <strong>Settings / Integrations</strong>。</li>
+              <li>在 URL 中填写系统提供的 Webhook 地址，一般是 <code>/api/webhooks/gitlab</code>。</li>
+              <li>在 Secret Token 中填写系统要求的 Access Token；若项目内已配置项目级 Token，则优先使用项目级 Token。</li>
+              <li>至少开启 <strong>Push events</strong> 和 <strong>Merge request events</strong>。</li>
             </ol>
             <div class="manual-note">
-              如果项目已经接入但始终没有生成审查记录，优先检查 Webhook 地址、Token 和 AI 审查开关是否正确。
+              如果项目已接入但始终没有生成审查记录，优先检查 Webhook 地址、Token、审查分支和 AI 审查开关是否配置正确。
             </div>
           </div>
         </section>
@@ -125,22 +104,19 @@
             <p class="section-index">03</p>
             <div>
               <h2>创建 / 配置大模型</h2>
-              <p>先在“大模型管理”中准备可用模型，项目才能绑定和使用。</p>
+              <p>先在“大模型管理”中准备可用模型，项目才能绑定并使用。</p>
             </div>
           </div>
           <div class="content-card">
             <ol class="manual-steps">
               <li>进入 <strong>大模型管理</strong> 页面，点击新建模型。</li>
-              <li>填写基础信息：配置名称、供应商、协议类型、Base URL、API Key、模型/模式标识。</li>
-              <li>按实际情况设置范围类型：
-                <span class="inline-note">公共模型适合多个项目复用，项目私有模型适合只给某个项目或项目组使用。</span>
-              </li>
-              <li>如为项目私有模型，需要指定维护项目，并可选择共享项目。</li>
+              <li>填写配置名称、提供商、协议类型、Base URL、API Key 和模型标识。</li>
+              <li>根据使用范围设置为公共模型或项目私有模型。</li>
+              <li>如为项目私有模型，需要指定维护项目；维护项目 Owner 或管理员才能继续管理。</li>
               <li>保存前建议先测试连接，确认模型可用。</li>
-              <li>如需作为系统默认模型，可设为默认。</li>
             </ol>
             <div class="manual-note">
-              默认模型只能存在一条；默认模型和已被项目绑定的模型都不允许删除。
+              已被项目绑定的模型不能直接删除；默认模型同一时间只允许存在一条。
             </div>
           </div>
         </section>
@@ -150,23 +126,20 @@
             <p class="section-index">04</p>
             <div>
               <h2>创建 / 配置项目</h2>
-              <p>项目是整个系统的业务承载单元，Webhook、Prompt、模型、模板、成员和通知都在项目维度配置。</p>
+              <p>项目是系统的业务承载单元，Webhook、Prompt、模型、成员和通知都在项目维度配置。</p>
             </div>
           </div>
           <div class="content-card">
             <ol class="manual-steps">
               <li>进入 <strong>项目管理</strong> 页面，点击新建项目。</li>
               <li>填写项目名称和 GitLab 项目 URL，系统会自动解析 GitLab 项目信息。</li>
-              <li>选择参与审查的项目分支（新建时请点击刷新按钮，系统将根据GitLab URL 和 token 自动拉取分支）</li>
-              <li>指定项目 Owner。项目 Owner 负责审核整改结果。</li>
-              <li>配置项目成员。项目成员拥有查看本项目数据和提交复审的权限。</li>
-              <li>配置项目模板。项目模板用于区分 Java 后端、前端、Go、通用等不同技术栈项目的默认审查策略。</li>
-              <li>打开 <strong>AI 审查</strong> 开关，并在同一卡片里选择项目使用的模型。</li>
-              <li>按需要设置 GitLab Note 回写、企业微信通知、项目 Prompt、项目级 Webhook Token。</li>
+              <li>选择参与审查的项目分支；需要时可刷新分支列表重新拉取。</li>
+              <li>指定项目 Owner，并配置项目成员。</li>
+              <li>按需绑定项目模板、项目模型、Prompt 和通知配置。</li>
               <li>保存后，再回到 GitLab 项目中配置 Webhook。</li>
             </ol>
             <div class="manual-note">
-              普通用户创建项目时，自己会自动成为该项目成员和 Owner；管理员创建项目时需要主动指定成员和 Owner。
+              普通用户创建项目时，自己会自动成为该项目成员和 Owner；管理员创建项目时需要主动指定 Owner 和成员。
             </div>
           </div>
         </section>
@@ -176,16 +149,16 @@
             <p class="section-index">05</p>
             <div>
               <h2>日常使用流程</h2>
-              <p>完成模型、项目和 Webhook 配置后，系统就可以自动进入审查流程。</p>
+              <p>完成模型、项目和 Webhook 配置后，系统会自动进入审查流程。</p>
             </div>
           </div>
           <div class="content-card">
             <ol class="manual-steps">
               <li>开发者 push 代码，或创建 / 更新 Merge Request。</li>
               <li>GitLab 触发 Webhook 到系统。</li>
-              <li>系统自动创建审查任务，调用大模型完成分析。</li>
-              <li>审查结果会进入审查记录，并按项目配置决定是否回写 GitLab、推送企业微信。</li>
-              <li>若存在问题，任务进入 <strong>待修改</strong>，项目成员修复后提交复审。</li>
+              <li>系统自动创建审查任务，并调用大模型完成分析。</li>
+              <li>审查结果进入审查记录，并按项目配置决定是否回写 GitLab、是否推送企业微信。</li>
+              <li>若存在问题，任务进入 <strong>待修复</strong>，项目成员修复后提交复审。</li>
               <li>项目 Owner 或管理员复审，决定通过或驳回。</li>
             </ol>
           </div>
@@ -196,15 +169,15 @@
             <p class="section-index">06</p>
             <div>
               <h2>看板使用说明</h2>
-              <p>看板适合快速了解近期项目活跃度、审查情况和总体趋势。</p>
+              <p>看板适合快速了解近期项目活跃度、审查情况和整体趋势。</p>
             </div>
           </div>
           <div class="content-card">
             <ul class="manual-list">
-              <li>右上角可以切换时间范围，例如近一周、近两周、近一月或自定义时间。</li>
-              <li>主要指标通常用于观察项目活跃数、提交量、平均得分等整体情况。</li>
+              <li>右上角可切换时间范围，例如近一周、近两周、近一月或自定义时间。</li>
+              <li>主要指标通常用于观察项目活跃数、审查量、平均得分等整体情况。</li>
               <li>图表数据会按当前用户有权限访问的项目范围自动过滤。</li>
-              <li>如果你只负责部分项目，看板展示的也会是你当前可见项目的数据。</li>
+              <li>如果你只负责部分项目，看板展示的也会是当前可见项目的数据。</li>
             </ul>
           </div>
         </section>
@@ -219,12 +192,10 @@
           </div>
           <div class="content-card">
             <ul class="manual-list">
-              <li>可查看模型配置列表、启停状态、范围类型、维护项目。</li>
-              <li>常用操作包括：编辑、启用/停用、测试连接、删除。</li>
-              <li>模型删除会受保护：
-                <span class="inline-note">已被项目绑定的模型不能删。</span>
-              </li>
-              <li>项目私有模型通常只允许维护项目的 Owner 或管理员管理。</li>
+              <li>可查看模型配置列表、启停状态、范围类型和维护项目。</li>
+              <li>常用操作包括编辑、启用 / 停用、测试连接和删除。</li>
+              <li>更多操作已统一收敛到轻量菜单，保持操作栏简洁。</li>
+              <li>项目私有模型通常只允许维护项目的 Owner 或管理员继续管理。</li>
             </ul>
           </div>
         </section>
@@ -239,10 +210,11 @@
           </div>
           <div class="content-card">
             <ul class="manual-list">
-              <li>查询区支持按项目名称、GitLab URL、AI 审查状态、企微通知状态筛选。</li>
-              <li>列表中可以快速查看项目配置状态。</li>
-              <li>编辑项目时，可修改成员、Owner、模型、模板、Prompt 和通知配置。</li>
-              <li>若你是项目 Owner，也可以管理自己负责项目的成员和 Owner。</li>
+              <li>查询区支持按项目名称、GitLab URL、AI 审查状态和企业微信通知状态筛选。</li>
+              <li>编辑和删除仍在行内操作栏；“更多”菜单用于放置低频管理动作。</li>
+              <li><strong>更多 -&gt; 自定义审查</strong> 可按提交时间区间批量审查 commit，并支持“跳过已审查 / 强制重审”两种模式。</li>
+              <li>自定义审查入口仅管理员和项目 Owner 可见；普通项目成员不可发起。</li>
+              <li>编辑项目时，可继续维护成员、Owner、模型、模板、Prompt 和通知配置。</li>
             </ul>
           </div>
         </section>
@@ -257,14 +229,14 @@
           </div>
           <div class="content-card">
             <ul class="manual-list">
-              <li>可按项目、任务状态、时间范围、提交者、提交信息等条件筛选。</li>
-              <li>列表中可看到任务状态、整改状态、提交分支、提交者等核心信息。</li>
-              <li>打开详情后，可查看整改情况、合规性评估和问题列表。</li>
+              <li>可按项目、任务状态、提交时间范围、提交者和提交信息等条件筛选。</li>
+              <li>列表默认按提交时间倒序展示，便于优先查看最新提交。</li>
+              <li>列表中可看到任务状态、整改状态、提交分支、提交者、提交时间等核心信息。</li>
+              <li>打开详情后，可同时查看提交时间与任务创建时间，避免混淆“代码提交”与“系统建任务”的时间点。</li>
               <li>项目成员可提交复审；项目 Owner 和管理员可执行审查通过或驳回。</li>
-              <li>若需要追踪整改过程，可在详情里查看流转历史。</li>
             </ul>
             <div class="manual-note">
-              如果某条记录已经完成修复并通过复审，整改状态会进入“审查通过”；若被驳回，可继续修改后再次提交复审。
+              手动批量审查场景下，提交者展示的是实际 commit 提交人；自定义审查发起人只作为后台追踪信息，不会覆盖提交者显示。
             </div>
           </div>
         </section>
@@ -274,9 +246,17 @@
     <el-dialog v-model="historyDialogVisible" title="历史版本" width="620px" destroy-on-close class="version-history-dialog">
       <ul class="version-list version-list--dialog">
         <li>
+          <strong>V1.1</strong>
+          <ol>
+            <li>新增深度审查能力，自动扩展 Diff 周边上下文，帮助识别需要结合完整方法或组件逻辑才能判断的问题。</li>
+            <li>审查记录支持展示当前代码和建议修改代码，并提供类编辑器样式的代码高亮效果。</li>
+            <li>上下文识别范围扩展到 Java、前端、Python、C++ 等常见项目类型。</li>
+          </ol>
+        </li>
+        <li>
           <strong>V1.0</strong>
           <ol>
-            <li>支持大模型配置管理，可维护模型供应商、模型参数、范围类型和启停状态。</li>
+            <li>支持大模型配置管理，可维护模型提供商、模型参数、范围类型和启停状态。</li>
             <li>支持项目配置、GitLab Webhook 接入、成员管理、AI 审查开关和通知回写配置。</li>
             <li>提供审查记录、整改复审闭环和看板统计，便于跟踪项目审查质量和处理进度。</li>
           </ol>
@@ -607,6 +587,13 @@ const openSystemHome = () => {
   background: rgba(255, 252, 247, 0.92);
   box-shadow: 0 18px 50px rgba(97, 78, 53, 0.06);
   border: 1px solid rgba(205, 190, 165, 0.38);
+}
+
+.content-card h4 {
+  margin: 0 0 12px;
+  color: #2f231d;
+  font-size: 16px;
+  font-weight: 800;
 }
 
 .manual-steps,

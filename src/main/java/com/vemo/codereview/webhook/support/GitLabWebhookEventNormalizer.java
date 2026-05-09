@@ -5,7 +5,10 @@ import com.vemo.codereview.webhook.model.StandardReviewEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -31,6 +34,7 @@ public class GitLabWebhookEventNormalizer {
         event.setOperatorId(payload.getUser() == null ? null : String.valueOf(payload.getUser().getId()));
         event.setOperatorName(payload.getUser() == null ? null : payload.getUser().getName());
         event.setSubmitBranch(payload.getObjectAttributes() == null ? null : payload.getObjectAttributes().getSourceBranch());
+        event.setSubmitTime(resolveMergeRequestSubmitTime(payload));
         event.setTargetId(String.valueOf(payload.getObjectAttributes().getIid()));
         event.setTargetTitle(payload.getObjectAttributes().getTitle());
         event.setIdempotentKey(idempotencyKeyBuilder.buildForMergeRequest(payload));
@@ -78,6 +82,7 @@ public class GitLabWebhookEventNormalizer {
         event.setOperatorId(payload.getUserUsername());
         event.setOperatorName(payload.getUserName());
         event.setSubmitBranch(resolvePushBranch(payload.getRef()));
+        event.setSubmitTime(resolveCommitSubmitTime(payload, commitSha));
         event.setTargetId(commitSha);
         event.setTargetTitle(title);
         event.setIdempotentKey(idempotencyKeyBuilder.buildForPushCommit(payload, commitSha));
@@ -128,6 +133,65 @@ public class GitLabWebhookEventNormalizer {
             return normalized.substring(headPrefix.length());
         }
         return normalized;
+    }
+
+    private Date resolveMergeRequestSubmitTime(GitLabWebhookPayload payload) {
+        if (payload == null || payload.getObjectAttributes() == null) {
+            return null;
+        }
+        Date submitTime = parseTimestamp(payload.getObjectAttributes().getCreatedAt());
+        if (submitTime != null) {
+            return submitTime;
+        }
+        submitTime = parseTimestamp(payload.getObjectAttributes().getUpdatedAt());
+        if (submitTime != null) {
+            return submitTime;
+        }
+        return payload.getObjectAttributes().getLastCommit() == null
+            ? null : parseTimestamp(payload.getObjectAttributes().getLastCommit().getTimestamp());
+    }
+
+    private Date resolveCommitSubmitTime(GitLabWebhookPayload payload, String commitSha) {
+        if (payload == null || payload.getCommits() == null || payload.getCommits().isEmpty()) {
+            return null;
+        }
+        for (GitLabWebhookPayload.Commit commit : payload.getCommits()) {
+            if (commit == null || !StringUtils.hasText(commit.getId())) {
+                continue;
+            }
+            if (StringUtils.hasText(commitSha) && commitSha.trim().equals(commit.getId().trim())) {
+                Date submitTime = parseTimestamp(commit.getTimestamp());
+                if (submitTime != null) {
+                    return submitTime;
+                }
+            }
+        }
+        for (GitLabWebhookPayload.Commit commit : payload.getCommits()) {
+            if (commit == null) {
+                continue;
+            }
+            Date submitTime = parseTimestamp(commit.getTimestamp());
+            if (submitTime != null) {
+                return submitTime;
+            }
+        }
+        return null;
+    }
+
+    private Date parseTimestamp(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String value = raw.trim();
+        try {
+            return Date.from(OffsetDateTime.parse(value).toInstant());
+        } catch (Exception ignored) {
+        }
+        try {
+            return Date.from(Instant.parse(value));
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private String writePayload(GitLabWebhookPayload payload) {

@@ -2,6 +2,7 @@ package com.vemo.codereview.platform.gitlab.service;
 
 import com.vemo.codereview.platform.gitlab.client.GitLabApiClient;
 import com.vemo.codereview.platform.gitlab.model.GitLabChangesPayload;
+import com.vemo.codereview.platform.gitlab.model.GitLabCommitPayload;
 import com.vemo.codereview.platform.gitlab.model.GitLabCommitNoteRequest;
 import com.vemo.codereview.platform.gitlab.model.GitLabNoteRequest;
 import com.vemo.codereview.project.service.GitLabProjectResolver;
@@ -70,6 +71,27 @@ public class GitLabReviewTargetService {
         log.info("gitlab commit diff fetched. projectId={}, commitSha={}, changes={}, elapsedMs={}",
             projectId, commitSha, changes == null ? 0 : changes.size(), elapsedMs(startNs));
         return response;
+    }
+
+    public List<GitLabCommitPayload> listBranchCommits(
+        String gitlabProjectUrl,
+        Long projectId,
+        String branch,
+        String since,
+        String until,
+        String token) {
+        long startNs = System.nanoTime();
+        List<GitLabCommitPayload> commits = gitLabApiClient.listRepositoryCommits(
+            resolveBaseUrl(gitlabProjectUrl),
+            projectId,
+            branch,
+            since,
+            until,
+            token
+        );
+        log.info("gitlab repository commits fetched. projectId={}, branch={}, commits={}, elapsedMs={}",
+            projectId, branch, commits == null ? 0 : commits.size(), elapsedMs(startNs));
+        return commits;
     }
 
     public String getRepositoryFileRaw(String gitlabProjectUrl, Long projectId,

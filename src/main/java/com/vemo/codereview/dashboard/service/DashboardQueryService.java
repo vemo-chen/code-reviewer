@@ -2,6 +2,7 @@ package com.vemo.codereview.dashboard.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.dashboard.entity.ProjectProfileEntity;
 import com.vemo.codereview.dashboard.mapper.ProjectProfileMapper;
@@ -43,7 +44,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -106,7 +106,8 @@ public class DashboardQueryService {
         }
 
         QueryWrapper<CodeReviewTaskEntity> pageWrapper = buildReviewTaskWrapper(request, taskIds, accessibleProjectIds);
-        pageWrapper.orderByDesc("id");
+        pageWrapper.last(
+            "ORDER BY (SELECT e.submit_time FROM code_review_event e WHERE e.id = code_review_task.event_id) DESC, id DESC");
 
         Page<CodeReviewTaskEntity> page = codeReviewTaskMapper.selectPage(new Page<CodeReviewTaskEntity>(pageNo, pageSize), pageWrapper);
         List<CodeReviewTaskEntity> tasks = page.getRecords();
@@ -150,12 +151,6 @@ public class DashboardQueryService {
         if (StringUtils.hasText(request.getTargetTitle())) {
             wrapper.like("target_title", request.getTargetTitle().trim());
         }
-        if (StringUtils.hasText(request.getStartDate())) {
-            wrapper.ge("created_at", parseDate(request.getStartDate()));
-        }
-        if (StringUtils.hasText(request.getEndDate())) {
-            wrapper.lt("created_at", parseEndExclusive(request.getEndDate()));
-        }
         if (taskIds != null) {
             wrapper.in("id", taskIds);
         }
@@ -194,6 +189,7 @@ public class DashboardQueryService {
         response.setOwnerDisplayName(resolveUserDisplayName(owner));
         response.setRetryCount(task.getRetryCount());
         response.setOperatorName(event != null ? event.getOperatorName() : null);
+        response.setSubmitTime(resolveSubmitTime(event));
         response.setCreatedAt(task.getCreatedAt());
         response.setFinishedAt(task.getFinishedAt());
         response.setFixStatus(task.getFixStatus());
@@ -487,6 +483,10 @@ public class DashboardQueryService {
 
     private Set<Long> resolveTaskIdsForCrossTableFilters(ReviewTaskQueryRequest request) {
         Set<Long> ids = null;
+        if (StringUtils.hasText(request.getStartDate()) || StringUtils.hasText(request.getEndDate())) {
+            Set<Long> submitTimeTaskIds = resolveTaskIdsBySubmitTimeRange(request.getStartDate(), request.getEndDate());
+            ids = submitTimeTaskIds;
+        }
         if (StringUtils.hasText(request.getRiskLevel())) {
             QueryWrapper<CodeReviewResultEntity> wrapper = new QueryWrapper<CodeReviewResultEntity>();
             wrapper.eq("risk_level", request.getRiskLevel().trim());
@@ -518,6 +518,36 @@ public class DashboardQueryService {
             }
         }
         return ids;
+    }
+
+    private Set<Long> resolveTaskIdsBySubmitTimeRange(String startDate, String endDate) {
+        QueryWrapper<CodeReviewEventEntity> eventWrapper = new QueryWrapper<CodeReviewEventEntity>();
+        if (StringUtils.hasText(startDate)) {
+            eventWrapper.ge("submit_time", parseDate(startDate));
+        }
+        if (StringUtils.hasText(endDate)) {
+            eventWrapper.lt("submit_time", parseEndExclusive(endDate));
+        }
+        List<CodeReviewEventEntity> events = codeReviewEventMapper.selectList(eventWrapper);
+        Set<Long> eventIds = new HashSet<Long>();
+        for (CodeReviewEventEntity event : events) {
+            if (event.getId() != null) {
+                eventIds.add(event.getId());
+            }
+        }
+        if (eventIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        QueryWrapper<CodeReviewTaskEntity> taskWrapper = new QueryWrapper<CodeReviewTaskEntity>();
+        taskWrapper.in("event_id", eventIds);
+        List<CodeReviewTaskEntity> tasks = codeReviewTaskMapper.selectList(taskWrapper);
+        Set<Long> taskIds = new HashSet<Long>();
+        for (CodeReviewTaskEntity task : tasks) {
+            if (task.getId() != null) {
+                taskIds.add(task.getId());
+            }
+        }
+        return taskIds;
     }
 
     private Set<Long> resolveTaskIdsByEventFilter(String column, String value, boolean useLike) {
@@ -583,6 +613,13 @@ public class DashboardQueryService {
         }
     }
 
+    private Date resolveSubmitTime(CodeReviewEventEntity event) {
+        if (event == null) {
+            return null;
+        }
+        return event.getSubmitTime();
+    }
+
     private String buildSubmitterLabel(String operatorName, String gitlabUsername) {
         if (!StringUtils.hasText(operatorName) || operatorName.trim().equals(gitlabUsername)) {
             return gitlabUsername;
@@ -614,6 +651,7 @@ public class DashboardQueryService {
         item.setRiskLevel(reviewResult != null ? reviewResult.getRiskLevel() : null);
         item.setFinalScore(reviewResult != null ? reviewResult.getFinalScore() : null);
         item.setSummary(reviewResult != null ? reviewResult.getSummary() : null);
+        item.setSubmitTime(resolveSubmitTime(event));
         item.setCreatedAt(task.getCreatedAt());
         item.setFinishedAt(task.getFinishedAt());
         return item;

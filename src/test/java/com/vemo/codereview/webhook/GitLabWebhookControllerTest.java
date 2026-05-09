@@ -78,6 +78,7 @@ class GitLabWebhookControllerTest {
             + "\"iid\":7,"
             + "\"title\":\"Add review pipeline\","
             + "\"action\":\"open\","
+            + "\"created_at\":\"2026-05-09T09:15:00+08:00\","
             + "\"source_branch\":\"feature/review\","
             + "\"target_branch\":\"main\","
             + "\"last_commit\":{\"id\":\"abcdef123456\"}"
@@ -103,6 +104,7 @@ class GitLabWebhookControllerTest {
         assertEquals("PENDING", task.getStatus());
         assertEquals(event.getId(), task.getEventId());
         assertEquals("MR_REVIEW", task.getTaskType());
+        assertNotNull(event.getSubmitTime());
         assertEquals(managedProjectId1001, event.getProjectId());
         assertEquals(managedProjectId1001, task.getProjectId());
     }
@@ -118,7 +120,7 @@ class GitLabWebhookControllerTest {
             + "\"before\":\"111111111111\","
             + "\"after\":\"abcdef123456\","
             + "\"project\":{\"id\":1002,\"name\":\"code-reviewer\"},"
-            + "\"commits\":[{\"id\":\"abcdef123456\",\"message\":\"Add push review\",\"title\":\"Add push review\"}]"
+            + "\"commits\":[{\"id\":\"abcdef123456\",\"message\":\"Add push review\",\"title\":\"Add push review\",\"timestamp\":\"2026-05-09T10:20:00+08:00\"}]"
             + "}";
 
         mockMvc.perform(post("/api/webhooks/gitlab")
@@ -141,6 +143,7 @@ class GitLabWebhookControllerTest {
         assertEquals("abcdef123456", task.getTargetId());
         assertEquals("PUSH_REVIEW", task.getTaskType());
         assertEquals("Add push review", task.getTargetTitle());
+        assertNotNull(event.getSubmitTime());
         assertEquals(managedProjectId1002, event.getProjectId());
         assertEquals(managedProjectId1002, task.getProjectId());
     }

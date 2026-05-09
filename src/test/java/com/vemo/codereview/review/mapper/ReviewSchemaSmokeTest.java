@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.vemo.codereview.CodeReviewerApplication;
+import com.vemo.codereview.review.entity.CodeReviewBatchEntity;
+import com.vemo.codereview.review.entity.CodeReviewBatchTaskRelEntity;
 import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import java.util.Date;
@@ -29,6 +31,12 @@ class ReviewSchemaSmokeTest {
     @Autowired
     private ReviewTaskStoreMapper codeReviewTaskMapper;
 
+    @Autowired
+    private ReviewBatchStoreMapper codeReviewBatchMapper;
+
+    @Autowired
+    private ReviewBatchTaskRelStoreMapper codeReviewBatchTaskRelMapper;
+
     @Test
     void shouldInsertAndQueryReviewEntities() {
         Date now = new Date();
@@ -42,6 +50,7 @@ class ReviewSchemaSmokeTest {
         event.setObjectType("merge_request");
         event.setOperatorId("u001");
         event.setOperatorName("alice");
+        event.setSubmitTime(now);
         event.setIdempotentKey("gitlab-1001-merge_request-mr-1");
         event.setPayloadJson("{\"object_kind\":\"merge_request\"}");
         event.setStatus("PENDING");
@@ -68,7 +77,49 @@ class ReviewSchemaSmokeTest {
         CodeReviewTaskEntity savedTask = codeReviewTaskMapper.selectById(task.getId());
 
         assertEquals("gitlab", savedEvent.getSourcePlatform());
+        assertNotNull(savedEvent.getSubmitTime());
         assertEquals(event.getId(), savedTask.getEventId());
         assertEquals("MR_REVIEW", savedTask.getTaskType());
+
+        CodeReviewBatchEntity batch = new CodeReviewBatchEntity();
+        batch.setProjectId(1001L);
+        batch.setTriggerType("CUSTOM_REVIEW");
+        batch.setReviewMode("SKIP_REVIEWED");
+        batch.setStartTime(now);
+        batch.setEndTime(now);
+        batch.setBranchScope("master,release");
+        batch.setStatus("RUNNING");
+        batch.setCreatedBy(2001L);
+        batch.setCreatedByName("bob");
+        batch.setTotalCommitCount(1);
+        batch.setCreatedTaskCount(1);
+        batch.setRetriedTaskCount(0);
+        batch.setSkippedReviewedCount(0);
+        batch.setSkippedRunningCount(0);
+        batch.setSkippedFailedCount(0);
+        batch.setFailedCount(0);
+        batch.setCreatedAt(now);
+        batch.setUpdatedAt(now);
+        assertEquals(1, codeReviewBatchMapper.insert(batch));
+        assertNotNull(batch.getId());
+
+        CodeReviewBatchTaskRelEntity rel = new CodeReviewBatchTaskRelEntity();
+        rel.setBatchId(batch.getId());
+        rel.setTaskId(task.getId());
+        rel.setTargetId("1");
+        rel.setSubmitBranch("master");
+        rel.setActionType("CREATED");
+        rel.setMessage("Task created from custom review batch");
+        rel.setCreatedAt(now);
+        rel.setUpdatedAt(now);
+        assertEquals(1, codeReviewBatchTaskRelMapper.insert(rel));
+        assertNotNull(rel.getId());
+
+        CodeReviewBatchEntity savedBatch = codeReviewBatchMapper.selectById(batch.getId());
+        CodeReviewBatchTaskRelEntity savedRel = codeReviewBatchTaskRelMapper.selectById(rel.getId());
+
+        assertEquals("CUSTOM_REVIEW", savedBatch.getTriggerType());
+        assertEquals(batch.getId(), savedRel.getBatchId());
+        assertEquals(task.getId(), savedRel.getTaskId());
     }
 }

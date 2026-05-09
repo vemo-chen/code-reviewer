@@ -78,13 +78,31 @@
             <el-table-column :label="texts.updatedAt" min-width="180">
               <template #default="{ row }">{{ formatDateTime(row.updatedAt) }}</template>
             </el-table-column>
-            <el-table-column :label="texts.actions" width="230" fixed="right">
+            <el-table-column :label="texts.actions" width="260" fixed="right">
               <template #default="{ row }">
                 <div class="table-actions">
                   <el-button link type="primary" @click="openViewDialog(row)">{{ texts.view }}</el-button>
                   <el-button v-if="canEditProject(row)" link type="warning" @click="openEditDialog(row)">{{ texts.edit }}</el-button>
-                  <el-button v-if="canEditProject(row)" link type="warning" :loading="refreshingId === row.id" @click="handleRefresh(row)">{{ texts.refresh }}</el-button>
                   <el-button v-if="canEditProject(row)" link type="danger" @click="handleDelete(row)">{{ texts.delete }}</el-button>
+                  <el-dropdown
+                    v-if="canCustomReviewProject(row)"
+                    trigger="click"
+                    popper-class="project-more-actions-menu"
+                    @command="onProjectMoreCommand(row, $event)"
+                  >
+                    <button type="button" class="more-actions-trigger" :aria-label="texts.moreActions">
+                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <circle cx="8" cy="3.25" r="1.2" />
+                        <circle cx="8" cy="8" r="1.2" />
+                        <circle cx="8" cy="12.75" r="1.2" />
+                      </svg>
+                    </button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="custom-review">{{ texts.customReview }}</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
                 </div>
               </template>
             </el-table-column>
@@ -182,7 +200,7 @@
               </el-tooltip>
             </div>
           </el-form-item>
-          <el-form-item :label="texts.reviewBranches">
+          <el-form-item :label="texts.reviewBranches" prop="selectedReviewBranches">
             <div class="branch-select-row">
               <el-select
                 v-model="projectForm.reviewBranches"
@@ -307,6 +325,66 @@
       </div>
     </el-drawer>
 
+    <el-dialog v-model="customReviewDialogVisible" :title="texts.customReviewDialogTitle" width="640px" destroy-on-close class="custom-review-dialog">
+      <el-form ref="customReviewFormRef" :model="customReviewForm" :rules="customReviewRules" label-position="top" class="project-form custom-review-form">
+        <section class="switch-section custom-review-section">
+          <h4 class="switch-section__title">{{ texts.customReviewBasicInfo }}</h4>
+          <el-form-item :label="texts.projectName">
+            <el-input :model-value="customReviewForm.projectName" readonly />
+          </el-form-item>
+          <el-form-item :label="texts.reviewBranches">
+            <el-select
+              v-model="customReviewForm.selectedReviewBranches"
+              class="full-width"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              :max-collapse-tags="4"
+              :placeholder="texts.customReviewBranchPlaceholder"
+              :disabled="customReviewForm.reviewBranchOptions.length === 0"
+            >
+              <el-option
+                v-for="branch in customReviewForm.reviewBranchOptions"
+                :key="branch"
+                :label="branch"
+                :value="branch"
+              />
+            </el-select>
+            <p class="member-hint">{{ texts.customReviewBranchScopeHint }}</p>
+          </el-form-item>
+          <el-form-item :label="texts.customReviewTimeRange" prop="dateRange">
+            <el-config-provider :locale="zhCn">
+              <el-date-picker
+                v-model="customReviewForm.dateRange"
+                class="full-width"
+                type="datetimerange"
+                :range-separator="texts.customReviewDateRangeSeparator"
+                :start-placeholder="texts.customReviewDateRangeStart"
+                :end-placeholder="texts.customReviewDateRangeEnd"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                unlink-panels
+              />
+            </el-config-provider>
+          </el-form-item>
+          <el-form-item :label="texts.customReviewMode" prop="reviewMode">
+            <div class="custom-review-mode-block">
+              <el-radio-group v-model="customReviewForm.reviewMode" class="custom-review-mode-group">
+                <el-radio label="SKIP_REVIEWED" border>{{ texts.skipReviewed }}</el-radio>
+                <el-radio label="FORCE_REREVIEW" border>{{ texts.forceRereview }}</el-radio>
+              </el-radio-group>
+              <p class="member-hint custom-review-mode-note">{{ texts.customReviewModeHint }}</p>
+            </div>
+          </el-form-item>
+        </section>
+      </el-form>
+      <template #footer>
+        <div class="drawer-footer">
+          <el-button @click="customReviewDialogVisible = false">{{ texts.cancel }}</el-button>
+          <el-button type="warning" :loading="customReviewSubmitting" @click="submitCustomReview">{{ texts.customReviewSubmit }}</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <el-drawer v-model="templateDialogVisible" :title="templateDialogMode === 'create' ? texts.createTemplate : texts.editTemplate" size="640px" destroy-on-close class="project-drawer">
       <div class="drawer-body" v-loading="templateDrawerLoading">
         <el-form ref="templateFormRef" :model="templateForm" :rules="templateRules" label-position="top" class="project-form">
@@ -350,7 +428,22 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { createProject, deleteProject, fetchGitLabBranches, fetchProjectDetail, fetchProjectLlmModels, fetchProjects, refreshProject, testGitLabProject, updateProject, type GitLabBranchOption, type ProjectUpsertPayload } from "../../api/projects";
+import zhCn from "element-plus/es/locale/lang/zh-cn";
+import {
+  createProject,
+  createProjectCustomReviewBatch,
+  deleteProject,
+  fetchGitLabBranches,
+  fetchProjectDetail,
+  fetchProjectLlmModels,
+  fetchProjects,
+  testGitLabProject,
+  updateProject,
+  type GitLabBranchOption,
+  type ProjectCustomReviewBatchPayload,
+  type ProjectCustomReviewBatchResponse,
+  type ProjectUpsertPayload
+} from "../../api/projects";
 import { createProjectTemplate, deleteProjectTemplate, fetchProjectTemplateDetail, fetchProjectTemplates, updateProjectTemplate, type ProjectTemplateUpsertPayload } from "../../api/project-templates";
 import { fetchLlmModels } from "../../api/llm";
 import { fetchProjectUsers, fetchUsers } from "../../api/users";
@@ -379,6 +472,14 @@ interface ProjectTemplateItem {
 interface ProjectTemplateForm {
   id?: number; templateName: string; templateDesc: string; fileExtensions: string; baseReviewPrompt: string;
 }
+interface CustomReviewForm {
+  projectId?: number;
+  projectName: string;
+  selectedReviewBranches: string[];
+  reviewBranchOptions: string[];
+  dateRange: [string, string] | [];
+  reviewMode: ProjectCustomReviewBatchPayload["reviewMode"];
+}
 
 const texts = {
   projectManagementTab: "\u9879\u76ee\u7ba1\u7406",
@@ -388,7 +489,7 @@ const texts = {
   createTemplate: "\u65b0\u5efa\u6a21\u677f", editTemplate: "\u7f16\u8f91\u6a21\u677f", templateName: "\u6a21\u677f\u540d\u79f0", templateNamePlaceholder: "\u8bf7\u8f93\u5165\u6a21\u677f\u540d\u79f0", templateDesc: "\u6a21\u677f\u63cf\u8ff0", templateDescPlaceholder: "\u8bf7\u8f93\u5165\u6a21\u677f\u63cf\u8ff0", fileExtensions: "\u9002\u7528\u6587\u4ef6\u540e\u7f00", fileExtensionsPlaceholder: "\u4f8b\u5982\uff1a.java,.xml,.properties,.yml", reviewPromptStatus: "Review \u63d0\u793a\u8bcd", configured: "\u5df2\u914d\u7f6e", notConfigured: "\u672a\u914d\u7f6e", baseReviewPrompt: "\u57fa\u7840 review \u63d0\u793a\u8bcd\u6a21\u677f", baseReviewPromptPlaceholder: "\u8bf7\u8f93\u5165\u6a21\u677f\u7ea7\u57fa\u7840 review \u63d0\u793a\u8bcd",
   templateSection: "\u6a21\u677f\u914d\u7f6e", projectTemplateSelect: "\u9879\u76ee\u6a21\u677f", projectTemplateSelectPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee\u6a21\u677f", projectTemplateSelectDesc: "\u9009\u62e9\u9879\u76ee\u6240\u5c5e\u7684\u5ba1\u67e5\u6a21\u677f\uff0c\u7528\u4e8e\u63d0\u4f9b\u9ed8\u8ba4\u6587\u4ef6\u540e\u7f00\u548c Prompt \u914d\u7f6e\u3002", fileExtensionsOverride: "\u652f\u6301\u7684\u6587\u4ef6\u6269\u5c55\u540d", fileExtensionsOverrideDesc: "\u7559\u7a7a\u4e14\u5df2\u9009\u6a21\u677f\u65f6\uff0c\u4f7f\u7528\u6a21\u677f\u914d\u7f6e\u3002", projectPromptDesc: "\u7559\u7a7a\u4e14\u5df2\u9009\u6a21\u677f\u65f6\uff0c\u4f7f\u7528\u6a21\u677f\u63d0\u793a\u8bcd\uff1b\u5426\u5219\u4f18\u5148\u4f7f\u7528\u9879\u76ee Prompt\u3002",
   search: "\u67e5\u8be2", reset: "\u91cd\u7f6e", createProject: "\u65b0\u5efa\u9879\u76ee", editProject: "\u7f16\u8f91\u9879\u76ee", viewProject: "\u67e5\u770b\u9879\u76ee", aiReview: "AI \u5ba1\u67e5", reviewContext: "\u6df1\u5ea6\u5ba1\u67e5", gitlabNote: "GitLab \u56de\u5199", wecomNotify: "\u4f01\u5fae\u901a\u77e5", active: "\u662f\u5426\u542f\u7528", updatedAt: "\u66f4\u65b0\u65f6\u95f4", actions: "\u64cd\u4f5c",
-  edit: "\u7f16\u8f91", refresh: "\u5237\u65b0", delete: "\u5220\u9664", totalPrefix: "\u5171", totalSuffix: "\u6761", pageSize10: "10\u6761/\u9875", pageSize20: "20\u6761/\u9875", pageSize50: "50\u6761/\u9875",
+  edit: "\u7f16\u8f91", delete: "\u5220\u9664", moreActions: "\u66f4\u591a\u64cd\u4f5c", customReview: "\u81ea\u5b9a\u4e49\u5ba1\u67e5", customReviewDialogTitle: "\u81ea\u5b9a\u4e49\u5ba1\u67e5", customReviewBasicInfo: "\u5ba1\u67e5\u8303\u56f4", customReviewBranchPlaceholder: "\u8bf7\u9009\u62e9\u5ba1\u67e5\u5206\u652f", customReviewBranchScopeHint: "\u4ec5\u672c\u6b21\u9009\u4e2d\u7684\u5206\u652f\u4f1a\u53c2\u4e0e\u6279\u91cf\u5ba1\u67e5\uff0c\u9009\u62e9\u8303\u56f4\u9650\u5b9a\u5728\u9879\u76ee reviewBranches \u5185\u3002", customReviewTimeRange: "\u63d0\u4ea4\u65f6\u95f4\u533a\u95f4", customReviewDateRangeSeparator: "\u81f3", customReviewDateRangeStart: "\u5f00\u59cb\u65f6\u95f4", customReviewDateRangeEnd: "\u7ed3\u675f\u65f6\u95f4", customReviewMode: "\u5904\u7406\u65b9\u5f0f", skipReviewed: "\u8df3\u8fc7\u5df2\u5ba1\u67e5", forceRereview: "\u5f3a\u5236\u91cd\u5ba1", customReviewModeHint: "\u9ed8\u8ba4\u8df3\u8fc7\u5df2\u6709\u7ed3\u679c\u7684 commit\u3002\u5982\u9700\u8981\u8986\u76d6\u65e7\u7ed3\u679c\uff0c\u518d\u9009\u62e9\u5f3a\u5236\u91cd\u5ba1\u3002", customReviewSubmit: "\u5f00\u59cb\u5ba1\u67e5", validateCustomReviewBranches: "\u8bf7\u9009\u62e9\u81f3\u5c11\u4e00\u4e2a\u5ba1\u67e5\u5206\u652f", validateCustomReviewTimeRange: "\u8bf7\u9009\u62e9\u63d0\u4ea4\u65f6\u95f4\u533a\u95f4", customReviewSuccessPrefix: "\u81ea\u5b9a\u4e49\u5ba1\u67e5\u5df2\u63d0\u4ea4\uff1a", customReviewFail: "\u81ea\u5b9a\u4e49\u5ba1\u67e5\u63d0\u4ea4\u5931\u8d25", customReviewAllBranches: "\u5168\u90e8\u5206\u652f", totalPrefix: "\u5171", totalSuffix: "\u6761", pageSize10: "10\u6761/\u9875", pageSize20: "20\u6761/\u9875", pageSize50: "50\u6761/\u9875",
   view: "\u67e5\u770b", viewTemplate: "\u67e5\u770b\u9879\u76ee\u6a21\u677f", close: "\u5173\u95ed",
   webhookToken: "Webhook Token", webhookTokenPlaceholder: "\u8bf7\u8f93\u5165 GitLab Webhook Token", testGitLab: "\u6d4b\u8bd5 GitLab", testConnection: "\u6d4b\u8bd5\u8fde\u63a5", projectOwner: "\u9879\u76ee Owner", projectOwnerPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee Owner",
   projectMembers: "\u9879\u76ee\u6210\u5458", projectMembersPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee\u6210\u5458", creatorHint: "\u521b\u5efa\u540e\u4f60\u5c06\u81ea\u52a8\u6210\u4e3a\u8be5\u9879\u76ee\u7684 Owner \u548c\u6210\u5458\uff0c\u53ef\u989d\u5916\u6307\u5b9a\u5176\u4ed6\u9879\u76ee\u6210\u5458\u3002", memberHint: "\u9879\u76ee\u6210\u5458\u652f\u6301\u591a\u9009\uff0c\u9879\u76ee Owner \u4f1a\u81ea\u52a8\u4fdd\u6301\u5728\u6210\u5458\u5217\u8868\u4e2d\u3002",
@@ -399,17 +500,18 @@ const texts = {
   cancel: "\u53d6\u6d88", save: "\u4fdd\u5b58", validateProjectName: "\u8bf7\u8f93\u5165\u9879\u76ee\u540d\u79f0", validateGitlabUrl: "\u8bf7\u8f93\u5165 GitLab \u9879\u76ee URL", warningOwner: "\u8bf7\u9009\u62e9\u9879\u76ee Owner", warningGitlabUrl: "\u8bf7\u5148\u586b\u5199 GitLab URL", warningGitlabToken: "\u8bf7\u5148\u586b\u5199 Webhook Token",
   warningReviewModel: "\u5f00\u542f AI \u5ba1\u67e5\u65f6\u5fc5\u987b\u9009\u62e9\u5ba1\u67e5\u6a21\u578b", warningWecomWebhook: "\u5f00\u542f\u4f01\u5fae\u901a\u77e5\u65f6\u5fc5\u987b\u586b\u5199\u4f01\u5fae Webhook",
   gitlabSuccessPrefix: "GitLab \u8fde\u63a5\u6210\u529f\uff1a", gitlabFail: "\u6d4b\u8bd5 GitLab \u5931\u8d25", loadProjectConfigFail: "\u52a0\u8f7d\u9879\u76ee\u914d\u7f6e\u6570\u636e\u5931\u8d25", loadProjectDetailFail: "\u52a0\u8f7d\u9879\u76ee\u8be6\u60c5\u5931\u8d25",
-  createSuccess: "\u9879\u76ee\u521b\u5efa\u6210\u529f", updateSuccess: "\u9879\u76ee\u66f4\u65b0\u6210\u529f", createFail: "\u9879\u76ee\u521b\u5efa\u5931\u8d25", updateFail: "\u9879\u76ee\u66f4\u65b0\u5931\u8d25", refreshSuccess: "GitLab \u9879\u76ee\u6570\u636e\u5df2\u5237\u65b0", refreshFail: "\u5237\u65b0 GitLab \u9879\u76ee\u5931\u8d25",
+  createSuccess: "\u9879\u76ee\u521b\u5efa\u6210\u529f", updateSuccess: "\u9879\u76ee\u66f4\u65b0\u6210\u529f", createFail: "\u9879\u76ee\u521b\u5efa\u5931\u8d25", updateFail: "\u9879\u76ee\u66f4\u65b0\u5931\u8d25",
   deleteConfirmTitle: "\u5220\u9664\u786e\u8ba4", deleteConfirmPrefix: "\u786e\u8ba4\u5220\u9664\u9879\u76ee\u201c", deleteConfirmSuffix: "\u201d\u5417\uff1f", confirm: "\u786e\u8ba4", deleteSuccess: "\u9879\u76ee\u5220\u9664\u6210\u529f", deleteFail: "\u9879\u76ee\u5220\u9664\u5931\u8d25", loadProjectListFail: "\u52a0\u8f7d\u9879\u76ee\u5217\u8868\u5931\u8d25",
   validateTemplateName: "\u8bf7\u8f93\u5165\u6a21\u677f\u540d\u79f0", createTemplateSuccess: "\u9879\u76ee\u6a21\u677f\u521b\u5efa\u6210\u529f", updateTemplateSuccess: "\u9879\u76ee\u6a21\u677f\u66f4\u65b0\u6210\u529f", createTemplateFail: "\u9879\u76ee\u6a21\u677f\u521b\u5efa\u5931\u8d25", updateTemplateFail: "\u9879\u76ee\u6a21\u677f\u66f4\u65b0\u5931\u8d25", deleteTemplateSuccess: "\u9879\u76ee\u6a21\u677f\u5220\u9664\u6210\u529f", deleteTemplateFail: "\u9879\u76ee\u6a21\u677f\u5220\u9664\u5931\u8d25", loadTemplateListFail: "\u52a0\u8f7d\u9879\u76ee\u6a21\u677f\u5217\u8868\u5931\u8d25", loadTemplateDetailFail: "\u52a0\u8f7d\u9879\u76ee\u6a21\u677f\u8be6\u60c5\u5931\u8d25", deleteTemplateConfirmPrefix: "\u786e\u8ba4\u5220\u9664\u6a21\u677f\u201c"
 } as const;
 
 const authStore = useAuthStore();
-const loading = ref(false); const saving = ref(false); const drawerLoading = ref(false); const refreshingId = ref<number | null>(null); const gitlabTesting = ref(false); const branchLoading = ref(false);
-const templateLoading = ref(false); const templateSaving = ref(false); const templateDrawerLoading = ref(false);
+const loading = ref(false); const saving = ref(false); const drawerLoading = ref(false); const gitlabTesting = ref(false); const branchLoading = ref(false);
+const templateLoading = ref(false); const templateSaving = ref(false); const templateDrawerLoading = ref(false); const customReviewSubmitting = ref(false);
 const activeTab = ref("project-management");
 const projects = ref<ProjectItem[]>([]); const selectableUsers = ref<ProjectMemberOption[]>([]); const llmModelOptions = ref<LlmModelOption[]>([]); const templates = ref<ProjectTemplateItem[]>([]); const templateOptions = ref<TemplateOption[]>([]); const gitlabBranchOptions = ref<GitLabBranchOption[]>([]);
-const dialogVisible = ref(false); const dialogMode = ref<"create" | "edit">("create"); const projectFormRef = ref<FormInstance>();
+const dialogVisible = ref(false); const dialogMode = ref<"create" | "edit" | "view">("create"); const projectFormRef = ref<FormInstance>();
+const customReviewDialogVisible = ref(false); const customReviewFormRef = ref<FormInstance>();
 const templateDialogVisible = ref(false); const templateDialogMode = ref<"create" | "edit">("create"); const templateFormRef = ref<FormInstance>();
 const templateDetailVisible = ref(false);
 const templateDetail = reactive<ProjectTemplateForm>({ templateName: "", templateDesc: "", fileExtensions: "", baseReviewPrompt: "" });
@@ -421,6 +523,33 @@ const activeQuery = reactive({ projectName: "", gitlabProjectUrl: "", aiReviewEn
 const activeTemplateQuery = reactive({ templateName: "" });
 const projectForm = reactive<ProjectForm>({ projectName: "", sourcePlatform: "gitlab", gitlabProjectUrl: "", gitlabWebhookToken: "", reviewBranches: [], ownerUserId: null, templateId: null, supportedFileExtensions: "", memberUserIds: [], llmModelId: null, aiReviewEnabled: true, reviewContextEnabled: true, gitlabNoteEnabled: true, wecomNotifyEnabled: false, wecomWebhookUrl: "", promptContent: "", active: true });
 const projectRules: FormRules<ProjectForm> = { projectName: [{ required: true, message: texts.validateProjectName, trigger: "blur" }], gitlabProjectUrl: [{ required: true, message: texts.validateGitlabUrl, trigger: "blur" }], gitlabWebhookToken: [{ required: true, message: texts.warningGitlabToken, trigger: "blur" }] };
+const customReviewForm = reactive<CustomReviewForm>({ projectId: undefined, projectName: "", selectedReviewBranches: [], reviewBranchOptions: [], dateRange: [], reviewMode: "SKIP_REVIEWED" });
+const customReviewRules: FormRules<CustomReviewForm> = {
+  selectedReviewBranches: [{
+    validator: (_rule, value, callback) => {
+      if (!customReviewForm.reviewBranchOptions.length) {
+        callback();
+        return;
+      }
+      if (Array.isArray(value) && value.length > 0) {
+        callback();
+        return;
+      }
+      callback(new Error(texts.validateCustomReviewBranches));
+    },
+    trigger: "change"
+  }],
+  dateRange: [{
+    validator: (_rule, value, callback) => {
+      if (Array.isArray(value) && value.length === 2 && value[0] && value[1]) {
+        callback();
+        return;
+      }
+      callback(new Error(texts.validateCustomReviewTimeRange));
+    },
+    trigger: "change"
+  }]
+};
 const templateForm = reactive<ProjectTemplateForm>({ templateName: "", templateDesc: "", fileExtensions: "", baseReviewPrompt: "" });
 const templateRules: FormRules<ProjectTemplateForm> = { templateName: [{ required: true, message: texts.validateTemplateName, trigger: "blur" }] };
 const currentUserId = computed(() => authStore.user?.userId ?? null); const showOwnerField = computed(() => authStore.isAdmin || dialogMode.value !== "create"); const showCreatorHint = computed(() => dialogMode.value === "create" && !authStore.isAdmin);
@@ -439,10 +568,25 @@ const normalizeText = (value: string | null | undefined) => typeof value === "st
 const normalizeUserIds = (value: number[] | undefined | null) => Array.from(new Set((value || []).filter((item) => typeof item === "number" && Number.isFinite(item))));
 const parseBranches = (value: string | null | undefined) => Array.from(new Set((value || "").split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean)));
 const serializeBranches = (value: string[]) => normalizeText(Array.from(new Set(value.map((item) => item.trim()).filter(Boolean))).join(","));
+const buildCustomReviewSummary = (result: ProjectCustomReviewBatchResponse) => {
+  const parts = [
+    `batch #${result.batchId}`,
+    `\u547d\u4e2d ${result.totalCommitCount || 0} \u4e2a commit`,
+    `\u65b0\u5efa ${result.createdTaskCount || 0} \u4e2a\u4efb\u52a1`,
+    `\u91cd\u5ba1 ${result.retriedTaskCount || 0} \u4e2a`,
+    `\u8df3\u8fc7\u5df2\u5ba1\u67e5 ${result.skippedReviewedCount || 0} \u4e2a`,
+    `\u8df3\u8fc7\u8fd0\u884c\u4e2d ${result.skippedRunningCount || 0} \u4e2a`,
+    `\u8df3\u8fc7\u5931\u8d25 ${result.skippedFailedCount || 0} \u4e2a`
+  ];
+  if ((result.failedCount || 0) > 0) parts.push(`\u5931\u8d25 ${result.failedCount} \u4e2a`);
+  return `${texts.customReviewSuccessPrefix}${parts.join("，")}`;
+};
 const ensureCreatorDefaults = () => { if (dialogMode.value === "create" && !authStore.isAdmin && currentUserId.value) { if (!projectForm.memberUserIds.includes(currentUserId.value)) projectForm.memberUserIds = [...projectForm.memberUserIds, currentUserId.value]; projectForm.ownerUserId = currentUserId.value; } };
 const applyFilters = () => { activeQuery.projectName = normalizeText(queryForm.projectName) || ""; activeQuery.gitlabProjectUrl = normalizeText(queryForm.gitlabProjectUrl) || ""; activeQuery.aiReviewEnabled = queryForm.aiReviewEnabled; activeQuery.wecomNotifyEnabled = queryForm.wecomNotifyEnabled; };
 const applyTemplateFilters = () => { activeTemplateQuery.templateName = normalizeText(templateQueryForm.templateName) || ""; };
-const canEditProject = (row: ProjectItem) => authStore.isAdmin || row.ownerUserId === currentUserId.value; const isCreatorLockedMember = (userId: number) => showCreatorHint.value && currentUserId.value === userId;
+const canEditProject = (row: ProjectItem) => authStore.isAdmin || row.ownerUserId === currentUserId.value;
+const canCustomReviewProject = (row: ProjectItem) => authStore.isAdmin || row.ownerUserId === currentUserId.value;
+const isCreatorLockedMember = (userId: number) => showCreatorHint.value && currentUserId.value === userId;
 const canManageTemplate = (row: ProjectTemplateItem) => Boolean(row.manageable);
 const openViewTemplateDialog = (row: ProjectTemplateItem) => {
   templateDetail.templateName = row.templateName || "";
@@ -512,6 +656,15 @@ const resetFilters = async () => { queryForm.projectName = ""; queryForm.gitlabP
 const handleTemplateSearch = async () => { templatePagination.pageNo = 1; applyTemplateFilters(); await loadTemplates(); };
 const resetTemplateFilters = async () => { templateQueryForm.templateName = ""; templatePagination.pageNo = 1; applyTemplateFilters(); await loadTemplates(); };
 const resetProjectForm = () => { projectForm.id = undefined; projectForm.projectName = ""; projectForm.sourcePlatform = "gitlab"; projectForm.gitlabProjectUrl = ""; projectForm.gitlabWebhookToken = ""; projectForm.reviewBranches = []; gitlabBranchOptions.value = []; projectForm.ownerUserId = null; projectForm.templateId = null; projectForm.supportedFileExtensions = ""; projectForm.memberUserIds = []; projectForm.llmModelId = null; projectForm.aiReviewEnabled = true; projectForm.reviewContextEnabled = true; projectForm.gitlabNoteEnabled = true; projectForm.wecomNotifyEnabled = false; projectForm.wecomWebhookUrl = ""; projectForm.promptContent = ""; projectForm.active = true; };
+const resetCustomReviewForm = () => {
+  customReviewForm.projectId = undefined;
+  customReviewForm.projectName = "";
+  customReviewForm.selectedReviewBranches = [];
+  customReviewForm.reviewBranchOptions = [];
+  customReviewForm.dateRange = [];
+  customReviewForm.reviewMode = "SKIP_REVIEWED";
+  customReviewFormRef.value?.clearValidate();
+};
 const resetTemplateForm = () => { templateForm.id = undefined; templateForm.templateName = ""; templateForm.templateDesc = ""; templateForm.fileExtensions = ""; templateForm.baseReviewPrompt = ""; };
 const openCreateDialog = async () => {
   dialogMode.value = "create"; resetProjectForm(); drawerLoading.value = true; dialogVisible.value = true;
@@ -533,6 +686,22 @@ const openProjectDialog = async (mode: "edit" | "view", row: ProjectItem) => {
 };
 const openEditDialog = async (row: ProjectItem) => { await openProjectDialog("edit", row); };
 const openViewDialog = async (row: ProjectItem) => { await openProjectDialog("view", row); };
+const openCustomReviewDialog = (row: ProjectItem) => {
+  if (!canCustomReviewProject(row)) return;
+  resetCustomReviewForm();
+  const reviewBranches = parseBranches(row.reviewBranches);
+  customReviewForm.projectId = row.id;
+  customReviewForm.projectName = row.projectName || "";
+  customReviewForm.reviewBranchOptions = reviewBranches;
+  customReviewForm.selectedReviewBranches = [...reviewBranches];
+  customReviewDialogVisible.value = true;
+};
+const onProjectMoreCommand = (row: ProjectItem, command: string | number | object) => {
+  if (typeof command === "string") handleProjectMoreCommand(row, command);
+};
+const handleProjectMoreCommand = async (row: ProjectItem, command: string) => {
+  if (command === "custom-review") openCustomReviewDialog(row);
+};
 const openCreateTemplateDialog = () => {
   templateDialogMode.value = "create";
   resetTemplateForm();
@@ -562,6 +731,17 @@ const handleOwnerChange = (value: number | null | undefined) => { if (!value) { 
 const handleMemberChange = (value: number[]) => { let nextValues = normalizeUserIds(value); if (showCreatorHint.value && currentUserId.value && !nextValues.includes(currentUserId.value)) nextValues = [...nextValues, currentUserId.value]; projectForm.memberUserIds = nextValues; if (projectForm.ownerUserId && !nextValues.includes(projectForm.ownerUserId)) projectForm.ownerUserId = null; ensureCreatorDefaults(); };
 const buildPayload = (): ProjectUpsertPayload => ({ projectName: projectForm.projectName.trim(), sourcePlatform: projectForm.sourcePlatform || "gitlab", gitlabProjectUrl: projectForm.gitlabProjectUrl.trim(), gitlabWebhookToken: normalizeText(projectForm.gitlabWebhookToken), reviewBranches: serializeBranches(projectForm.reviewBranches), ownerUserId: dialogMode.value === "edit" || authStore.isAdmin ? projectForm.ownerUserId ?? null : undefined, templateId: projectForm.templateId ?? null, supportedFileExtensions: normalizeText(projectForm.supportedFileExtensions), memberUserIds: normalizeUserIds(projectForm.memberUserIds), llmModelId: projectForm.llmModelId ?? null, aiReviewEnabled: projectForm.aiReviewEnabled, reviewContextEnabled: projectForm.reviewContextEnabled, gitlabNoteEnabled: projectForm.gitlabNoteEnabled, wecomNotifyEnabled: projectForm.wecomNotifyEnabled, wecomWebhookUrl: normalizeText(projectForm.wecomWebhookUrl), promptContent: projectForm.promptContent, active: projectForm.active });
 const buildTemplatePayload = (): ProjectTemplateUpsertPayload => ({ templateName: templateForm.templateName.trim(), templateDesc: normalizeText(templateForm.templateDesc), fileExtensions: normalizeText(templateForm.fileExtensions), baseReviewPrompt: normalizeText(templateForm.baseReviewPrompt) });
+const buildCustomReviewPayload = (): ProjectCustomReviewBatchPayload => {
+  const dateRange = customReviewForm.dateRange;
+  if (!Array.isArray(dateRange) || dateRange.length !== 2) throw new Error(texts.validateCustomReviewTimeRange);
+  const [startTime, endTime] = dateRange;
+  return {
+    startTime,
+    endTime,
+    reviewMode: customReviewForm.reviewMode,
+    reviewBranches: [...customReviewForm.selectedReviewBranches]
+  };
+};
 const submitProject = async () => {
   if (!projectFormRef.value) return; ensureCreatorDefaults();
   await projectFormRef.value.validate(async (valid) => {
@@ -576,6 +756,25 @@ const submitProject = async () => {
       dialogVisible.value = false; await loadProjects();
     } catch (error) { ElMessage.error(dialogMode.value === "create" ? texts.createFail : texts.updateFail); }
     finally { saving.value = false; }
+  });
+};
+const submitCustomReview = async () => {
+  const projectId = customReviewForm.projectId;
+  if (!customReviewFormRef.value || !projectId) return;
+  await customReviewFormRef.value.validate(async (valid) => {
+    if (!valid) return;
+    customReviewSubmitting.value = true;
+    try {
+      const response = await createProjectCustomReviewBatch(projectId, buildCustomReviewPayload());
+      const result = response.data.data as ProjectCustomReviewBatchResponse | undefined;
+      ElMessage.success(result ? buildCustomReviewSummary(result) : texts.customReviewSuccessPrefix);
+      customReviewDialogVisible.value = false;
+      resetCustomReviewForm();
+    } catch (error: any) {
+      ElMessage.error(error?.response?.data?.message || texts.customReviewFail);
+    } finally {
+      customReviewSubmitting.value = false;
+    }
   });
 };
 const submitTemplate = async () => {
@@ -600,7 +799,6 @@ const submitTemplate = async () => {
     }
   });
 };
-const handleRefresh = async (row: ProjectItem) => { refreshingId.value = row.id; try { await refreshProject(row.id); ElMessage.success(texts.refreshSuccess); await loadProjects(); } catch (error) { ElMessage.error(texts.refreshFail); } finally { refreshingId.value = null; } };
 const handleDelete = async (row: ProjectItem) => {
   try {
     await ElMessageBox.confirm(`${texts.deleteConfirmPrefix}${row.projectName}${texts.deleteConfirmSuffix}`, texts.deleteConfirmTitle, { confirmButtonText: texts.confirm, cancelButtonText: texts.cancel, type: "warning" });
@@ -666,9 +864,13 @@ onMounted(() => {
 .query-select { width: 156px; }
 .table-header-tip { cursor: help; }
 .table-actions { display: inline-flex; align-items: center; flex-wrap: nowrap; gap: 10px; }
-.table-actions :deep(.el-button.is-link) { height: 22px; min-height: 22px; margin-left: 0; padding: 0 7px; border: 1px solid #e9ebec; border-radius: 4px; background: #ffffff; color: #303133; font-size: 12px; font-weight: 500; line-height: 20px; white-space: nowrap; }
-.table-actions :deep(.el-button.is-link:hover), .table-actions :deep(.el-button.is-link:focus-visible) { border-color: var(--cr-primary); background: rgba(255, 140, 0, 0.06); color: var(--cr-primary); }
-.table-actions :deep(.el-button.is-link.is-disabled) { border-color: #e9ebec; background: #ffffff; color: rgba(86, 67, 52, 0.34); }
+.table-actions :deep(.el-button.is-link:not(.more-actions-trigger)) { height: 22px; min-height: 22px; margin-left: 0; padding: 0 7px; border: 1px solid #e9ebec; border-radius: 4px; background: #ffffff; color: #303133; font-size: 12px; font-weight: 500; line-height: 20px; white-space: nowrap; }
+.table-actions :deep(.el-button.is-link:not(.more-actions-trigger):hover), .table-actions :deep(.el-button.is-link:not(.more-actions-trigger):focus-visible) { border-color: var(--cr-primary); background: rgba(255, 140, 0, 0.06); color: var(--cr-primary); }
+.table-actions :deep(.el-button.is-link:not(.more-actions-trigger).is-disabled) { border-color: #e9ebec; background: #ffffff; color: rgba(86, 67, 52, 0.34); }
+.table-actions :deep(.el-dropdown) { display: inline-flex; align-items: center; margin-left: 0; }
+.more-actions-trigger { width: 28px; height: 28px; padding: 0; border: none; border-radius: 8px; background: transparent; color: rgba(86, 67, 52, 0.72); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease; }
+.more-actions-trigger svg { width: 16px; height: 16px; display: block; fill: currentColor; }
+.more-actions-trigger:hover, .more-actions-trigger:focus-visible { outline: none; background: rgba(255, 140, 0, 0.1); color: var(--cr-primary); transform: translateY(-1px); }
 .status-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 0; padding: 0 7px; border: 1px solid currentColor; border-radius: 4px; background: #ffffff; font-size: 12px; font-weight: 500; line-height: 20px; }
 .is-primary { color: #389e0d; border-color: #b7eb8f; background: #f6ffed; }
 .is-neutral { color: #606266; border-color: #e9ebec; background: #ffffff; }
@@ -698,7 +900,29 @@ onMounted(() => {
 .switch-item__desc { margin: 0; color: var(--cr-text-soft); font-size: 12px; line-height: 1.5; }
 .switch-item__extra { width: 100%; display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(235, 238, 245, 0.92); }
 .switch-item__extra-head { display: grid; gap: 4px; }
+.custom-review-form { padding-top: 4px; }
+.custom-review-section { margin-bottom: 0; }
+.custom-review-mode-block { display: grid; gap: 8px; }
+.custom-review-mode-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; }
+.custom-review-mode-group :deep(.el-radio) { margin-right: 0; }
+.custom-review-mode-group :deep(.el-radio.is-bordered) { height: 40px; margin-left: 0; border-color: #dcdfe6; border-radius: 10px; background: #ffffff; color: #303133; }
+.custom-review-mode-group :deep(.el-radio.is-bordered .el-radio__label) { padding-left: 8px; font-size: 13px; font-weight: 500; }
+.custom-review-mode-group :deep(.el-radio.is-bordered .el-radio__inner) { border-color: #c0c4cc; background: #ffffff; }
+.custom-review-mode-group :deep(.el-radio__input + .el-radio__label) { color: #303133; }
+.custom-review-mode-group :deep(.el-radio__input.is-checked + .el-radio__label) { color: #e6a23c; }
+.custom-review-mode-group :deep(.el-radio.is-bordered.is-checked) { border-color: #e6a23c; background: #fff8ee; color: #e6a23c; box-shadow: none; }
+.custom-review-mode-group :deep(.el-radio.is-bordered.is-checked .el-radio__inner) { border-color: #e6a23c; background: #e6a23c; }
+.custom-review-mode-group :deep(.el-radio.is-bordered:hover) { border-color: #e6a23c; color: #8a5a22; }
+.custom-review-mode-group :deep(.el-radio.is-bordered:hover .el-radio__inner) { border-color: #e6a23c; }
+.custom-review-mode-note { line-height: 1.6; }
 .drawer-footer { display: flex; justify-content: flex-end; gap: 12px; padding-top: 20px; }
 .drawer-footer :deep(.el-button:not(.el-button--warning)) { border-color: #e9ebec; }
 .drawer-footer :deep(.el-button:not(.el-button--warning):hover), .drawer-footer :deep(.el-button:not(.el-button--warning):focus-visible) { border-color: var(--cr-primary); color: var(--cr-primary); }
+:global(.el-dropdown__popper.project-more-actions-menu) { --el-dropdown-menuItem-hover-fill: #fff2df; --el-dropdown-menuItem-hover-color: #d46b08; }
+:global(.el-dropdown__popper.project-more-actions-menu .el-dropdown-menu__item) { color: #5f4b3b; font-size: 13px; }
+:global(.el-dropdown__popper.project-more-actions-menu .el-dropdown-menu__item:not(.is-disabled):hover), :global(.el-dropdown__popper.project-more-actions-menu .el-dropdown-menu__item:not(.is-disabled):focus) { background: #fff2df !important; color: #d46b08 !important; }
+
+@media (max-width: 720px) {
+  .custom-review-mode-group { grid-template-columns: 1fr; }
+}
 </style>

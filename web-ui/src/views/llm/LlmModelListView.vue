@@ -110,11 +110,16 @@
                 </el-button>
                 <el-dropdown
                   trigger="click"
-                  @command="(command) => handleMoreCommand(row, command as string)"
+                  popper-class="llm-more-actions-menu"
+                  @command="onMoreCommand(row, $event)"
                 >
-                  <el-button link class="more-actions-trigger">
-                    更多
-                  </el-button>
+                  <button type="button" class="more-actions-trigger" aria-label="更多操作">
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                      <circle cx="8" cy="3.25" r="1.2" />
+                      <circle cx="8" cy="8" r="1.2" />
+                      <circle cx="8" cy="12.75" r="1.2" />
+                    </svg>
+                  </button>
                   <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item command="test" :disabled="testingId === row.id">
@@ -715,6 +720,12 @@ const handleDisable = async (row: LlmModelItem) => {
   }
 };
 
+const onMoreCommand = (row: LlmModelItem, command: string | number | object) => {
+  if (typeof command === "string") {
+    handleMoreCommand(row, command);
+  }
+};
+
 const handleMoreCommand = async (row: LlmModelItem, command: string) => {
   if (command === "test") {
     await handleTest(row);
@@ -805,7 +816,7 @@ onMounted(() => {
   gap: 10px;
 }
 
-.table-actions :deep(.el-button.is-link) {
+.table-actions :deep(.el-button.is-link:not(.more-actions-trigger)) {
   height: 22px;
   min-height: 22px;
   margin-left: 0;
@@ -820,14 +831,14 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.table-actions :deep(.el-button.is-link:hover),
-.table-actions :deep(.el-button.is-link:focus-visible) {
+.table-actions :deep(.el-button.is-link:not(.more-actions-trigger):hover),
+.table-actions :deep(.el-button.is-link:not(.more-actions-trigger):focus-visible) {
   border-color: var(--cr-primary);
   background: rgba(255, 140, 0, 0.06);
   color: var(--cr-primary);
 }
 
-.table-actions :deep(.el-button.is-link.is-disabled) {
+.table-actions :deep(.el-button.is-link:not(.more-actions-trigger).is-disabled) {
   border-color: #e9ebec;
   background: #ffffff;
   color: rgba(86, 67, 52, 0.34);
@@ -840,12 +851,59 @@ onMounted(() => {
 }
 
 .more-actions-trigger {
-  white-space: nowrap;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(86, 67, 52, 0.72);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.more-actions-trigger svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: currentColor;
 }
 
 .more-actions-trigger:hover,
 .more-actions-trigger:focus-visible {
+  outline: none;
+  background: rgba(255, 140, 0, 0.1);
   color: var(--cr-primary);
+  transform: translateY(-1px);
+}
+
+:global(.el-dropdown__popper.llm-more-actions-menu) {
+  --el-dropdown-menuItem-hover-fill: #fff2df;
+  --el-dropdown-menuItem-hover-color: #d46b08;
+}
+
+:global(.el-dropdown__popper.llm-more-actions-menu .el-dropdown-menu__item) {
+  color: #5f4b3b;
+  font-size: 13px;
+}
+
+:global(.el-dropdown__popper.llm-more-actions-menu .el-dropdown-menu__item:not(.is-disabled):hover),
+:global(.el-dropdown__popper.llm-more-actions-menu .el-dropdown-menu__item:not(.is-disabled):focus) {
+  background: #fff2df !important;
+  color: #d46b08 !important;
+}
+
+:global(.el-dropdown__popper.llm-more-actions-menu .danger-dropdown-item) {
+  color: #c45656;
+}
+
+:global(.el-dropdown__popper.llm-more-actions-menu .danger-dropdown-item:not(.is-disabled):hover),
+:global(.el-dropdown__popper.llm-more-actions-menu .danger-dropdown-item:not(.is-disabled):focus) {
+  background: #fff1e8 !important;
+  color: #b54708 !important;
 }
 
 .status-pill {

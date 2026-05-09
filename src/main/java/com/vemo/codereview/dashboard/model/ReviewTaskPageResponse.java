@@ -31,6 +31,7 @@ public class ReviewTaskPageResponse {
         private String riskLevel;
         private Integer finalScore;
         private String summary;
+        private Date submitTime;
         private Date createdAt;
         private Date finishedAt;
     }

@@ -120,7 +120,7 @@
         <el-table-column prop="operatorName" label="提交者" min-width="120" />
         <el-table-column label="提交时间" min-width="180">
           <template #default="{ row }">
-            {{ formatDateTime(row.createdAt) }}
+            {{ formatDateTime(row.submitTime) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="170" fixed="right">
@@ -212,7 +212,8 @@
             <span>{{ detail.operatorName || "--" }}</span>
             <span>{{ detail.submitBranch || "--" }}</span>
             <span>{{ detail.targetId || "--" }}</span>
-            <span>{{ formatDateTime(detail.createdAt) }}</span>
+            <span>提交时间：{{ formatDateTime(detail.submitTime) }}</span>
+            <span>任务创建：{{ formatDateTime(detail.createdAt) }}</span>
           </div>
         </section>
 
@@ -426,6 +427,7 @@ interface ReviewRecordItem {
   fixStatus: string;
   retryCount: number;
   operatorName: string;
+  submitTime: string | null;
   riskLevel: string;
   summary: string;
   createdAt: string | null;
@@ -470,6 +472,7 @@ interface ReviewTaskDetail {
   fixReviewComment: string;
   retryCount: number;
   operatorName: string;
+  submitTime: string | null;
   createdAt: string | null;
   finishedAt: string | null;
   riskLevel: string;

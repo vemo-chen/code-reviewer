@@ -9,12 +9,15 @@ import com.vemo.codereview.dashboard.mapper.ProjectProfileMapper;
 import com.vemo.codereview.llm.model.ProjectLlmModelOptionResponse;
 import com.vemo.codereview.llm.service.LlmModelService;
 import com.vemo.codereview.platform.gitlab.model.GitLabProjectPayload;
+import com.vemo.codereview.project.model.ProjectCustomReviewBatchRequest;
+import com.vemo.codereview.project.model.ProjectCustomReviewBatchResponse;
 import com.vemo.codereview.project.model.ProjectDetailResponse;
 import com.vemo.codereview.project.model.ProjectPageResponse;
 import com.vemo.codereview.project.model.ProjectQueryRequest;
 import com.vemo.codereview.project.model.ProjectUpsertRequest;
 import com.vemo.codereview.projecttemplate.entity.ProjectTemplateEntity;
 import com.vemo.codereview.projecttemplate.mapper.ProjectTemplateMapper;
+import com.vemo.codereview.review.service.ProjectCustomReviewBatchService;
 import com.vemo.codereview.user.entity.UserEntity;
 import com.vemo.codereview.user.entity.UserProjectRelEntity;
 import com.vemo.codereview.user.mapper.UserMapper;
@@ -41,6 +44,7 @@ public class ProjectService {
     private final UserProjectRelMapper userProjectRelMapper;
     private final LlmModelService llmModelService;
     private final ProjectTemplateMapper projectTemplateMapper;
+    private final ProjectCustomReviewBatchService projectCustomReviewBatchService;
 
     public ProjectService(
         ProjectProfileMapper projectProfileMapper,
@@ -50,7 +54,8 @@ public class ProjectService {
         UserMapper userMapper,
         UserProjectRelMapper userProjectRelMapper,
         LlmModelService llmModelService,
-        ProjectTemplateMapper projectTemplateMapper) {
+        ProjectTemplateMapper projectTemplateMapper,
+        ProjectCustomReviewBatchService projectCustomReviewBatchService) {
         this.projectProfileMapper = projectProfileMapper;
         this.gitLabProjectResolver = gitLabProjectResolver;
         this.currentUserService = currentUserService;
@@ -59,6 +64,7 @@ public class ProjectService {
         this.userProjectRelMapper = userProjectRelMapper;
         this.llmModelService = llmModelService;
         this.projectTemplateMapper = projectTemplateMapper;
+        this.projectCustomReviewBatchService = projectCustomReviewBatchService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -196,6 +202,15 @@ public class ProjectService {
             throw new DomainException("PROJECT_NOT_FOUND", "Project not found");
         }
         return llmModelService.listProjectAvailableModels(projectId);
+    }
+
+    public ProjectCustomReviewBatchResponse createCustomReviewBatch(Long id, ProjectCustomReviewBatchRequest request) {
+        ProjectProfileEntity entity = projectProfileMapper.selectById(id);
+        if (entity == null) {
+            throw new DomainException("PROJECT_NOT_FOUND", "Project not found");
+        }
+        requireProjectManager(entity);
+        return projectCustomReviewBatchService.createBatch(entity, request);
     }
 
     private void validateRequest(ProjectUpsertRequest request) {

@@ -15,6 +15,8 @@ import com.vemo.codereview.auth.service.AuthTokenService;
 import com.vemo.codereview.dashboard.mapper.ProjectProfileMapper;
 import com.vemo.codereview.platform.gitlab.model.GitLabProjectPayload;
 import com.vemo.codereview.project.service.GitLabProjectResolver;
+import java.util.Collections;
+import java.util.List;
 import com.vemo.codereview.user.entity.UserEntity;
 import com.vemo.codereview.user.mapper.UserMapper;
 import java.util.Date;
@@ -56,17 +58,24 @@ class ProjectControllerTest {
     private GitLabProjectResolver gitLabProjectResolver;
 
     private String adminToken;
+    private String memberToken;
 
     @BeforeEach
     void clearData() {
         projectProfileMapper.delete(null);
         userMapper.delete(null);
         adminToken = "Bearer " + authTokenService.createToken(createUser(1L, "admin", "ADMIN"));
-        userMapper.insert(createUser(2L, "owner", "PROJECT_OWNER"));
+        userMapper.insert(createUser(2L, "owner", "USER"));
+        userMapper.insert(createUser(3L, "member", "USER"));
+        memberToken = "Bearer " + authTokenService.createToken(createUser(3L, "member", "USER"));
         when(gitLabProjectResolver.resolveProject(eq("http://gitlab.example.com/group/mas-core"), eq("project-token")))
             .thenReturn(buildProjectPayload(1001L, "http://gitlab.example.com/group/mas-core"));
         when(gitLabProjectResolver.resolveProject(eq("http://gitlab.example.com/group/mas-core-updated"), eq("project-token")))
             .thenReturn(buildProjectPayload(1002L, "http://gitlab.example.com/group/mas-core-updated"));
+        when(gitLabProjectResolver.listBranches(eq("http://gitlab.example.com/group/mas-core"), eq("project-token")))
+            .thenReturn(Collections.emptyList());
+        when(gitLabProjectResolver.listBranches(eq("http://gitlab.example.com/group/mas-core-updated"), eq("project-token")))
+            .thenReturn(Collections.emptyList());
     }
 
     @Test
@@ -98,7 +107,9 @@ class ProjectControllerTest {
             .andExpect(jsonPath("$.data.reviewContextEnabled").value(true))
             .andExpect(jsonPath("$.data.wecomNotifyEnabled").value(true));
 
-        mockMvc.perform(get("/api/projects/1")
+        Long projectId = loadSingleProjectId();
+
+        mockMvc.perform(get("/api/projects/" + projectId)
                 .header("Authorization", adminToken))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
@@ -120,7 +131,7 @@ class ProjectControllerTest {
             + "\"active\":true"
             + "}";
 
-        mockMvc.perform(put("/api/projects/1")
+        mockMvc.perform(put("/api/projects/" + projectId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", adminToken)
                 .content(updatePayload))
@@ -140,19 +151,117 @@ class ProjectControllerTest {
             .andExpect(jsonPath("$.data.records[0].projectName").value("MAS Core Updated"))
             .andExpect(jsonPath("$.data.records[0].gitlabProjectId").value(1002));
 
-        mockMvc.perform(post("/api/projects/1/refresh")
+        mockMvc.perform(post("/api/projects/" + projectId + "/refresh")
                 .header("Authorization", adminToken))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.gitlabProjectId").value(1002));
 
-        mockMvc.perform(delete("/api/projects/1")
+        mockMvc.perform(delete("/api/projects/" + projectId)
                 .header("Authorization", adminToken))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data").value("deleted"));
 
         assertEquals(Long.valueOf(0L), projectProfileMapper.selectCount(null));
+    }
+
+    @Test
+    void shouldValidateCustomReviewBatchRequest() throws Exception {
+        String createPayload = "{"
+            + "\"projectName\":\"MAS Core\","
+            + "\"gitlabProjectUrl\":\"http://gitlab.example.com/group/mas-core\","
+            + "\"gitlabWebhookToken\":\"project-token\","
+            + "\"ownerUserId\":2,"
+            + "\"memberUserIds\":[2,3],"
+            + "\"aiReviewEnabled\":false,"
+            + "\"gitlabNoteEnabled\":true,"
+            + "\"wecomNotifyEnabled\":false,"
+            + "\"promptContent\":\"Review this project using team rules\","
+            + "\"active\":true"
+            + "}";
+
+        mockMvc.perform(post("/api/projects")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", adminToken)
+                .content(createPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+
+        Long projectId = loadSingleProjectId();
+
+        String invalidBatchPayload = "{"
+            + "\"reviewMode\":\"SKIP_REVIEWED\""
+            + "}";
+
+        mockMvc.perform(post("/api/projects/" + projectId + "/custom-review-batches")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", adminToken)
+                .content(invalidBatchPayload))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("CUSTOM_REVIEW_TIME_RANGE_REQUIRED"));
+
+        String validBatchPayload = "{"
+            + "\"startTime\":\"2026-05-01 00:00:00\","
+            + "\"endTime\":\"2026-05-09 23:59:59\","
+            + "\"reviewMode\":\"SKIP_REVIEWED\""
+            + "}";
+
+        mockMvc.perform(post("/api/projects/" + projectId + "/custom-review-batches")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", adminToken)
+                .content(validBatchPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.totalCommitCount").value(0))
+            .andExpect(jsonPath("$.data.createdTaskCount").value(0))
+            .andExpect(jsonPath("$.data.failedCount").value(0));
+    }
+
+    @Test
+    void shouldRejectCustomReviewBatchForNonOwnerProjectMember() throws Exception {
+        String createPayload = "{"
+            + "\"projectName\":\"MAS Core\","
+            + "\"gitlabProjectUrl\":\"http://gitlab.example.com/group/mas-core\","
+            + "\"gitlabWebhookToken\":\"project-token\","
+            + "\"ownerUserId\":2,"
+            + "\"memberUserIds\":[2,3],"
+            + "\"aiReviewEnabled\":false,"
+            + "\"gitlabNoteEnabled\":true,"
+            + "\"wecomNotifyEnabled\":false,"
+            + "\"promptContent\":\"Review this project using team rules\","
+            + "\"active\":true"
+            + "}";
+
+        mockMvc.perform(post("/api/projects")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", adminToken)
+                .content(createPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+
+        Long projectId = loadSingleProjectId();
+
+        String validBatchPayload = "{"
+            + "\"startTime\":\"2026-05-01 00:00:00\","
+            + "\"endTime\":\"2026-05-09 23:59:59\","
+            + "\"reviewMode\":\"SKIP_REVIEWED\""
+            + "}";
+
+        mockMvc.perform(post("/api/projects/" + projectId + "/custom-review-batches")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", memberToken)
+                .content(validBatchPayload))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("AUTH_FORBIDDEN"));
+    }
+
+    private Long loadSingleProjectId() {
+        List<com.vemo.codereview.dashboard.entity.ProjectProfileEntity> projects = projectProfileMapper.selectList(null);
+        assertEquals(1, projects.size());
+        return projects.get(0).getId();
     }
 
     private UserEntity createUser(Long id, String username, String role) {

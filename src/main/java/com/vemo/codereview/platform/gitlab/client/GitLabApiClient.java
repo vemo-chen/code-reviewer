@@ -4,6 +4,7 @@ import com.vemo.codereview.common.config.GitLabProperties;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.platform.gitlab.model.GitLabBranchPayload;
 import com.vemo.codereview.platform.gitlab.model.GitLabChangesPayload;
+import com.vemo.codereview.platform.gitlab.model.GitLabCommitPayload;
 import com.vemo.codereview.platform.gitlab.model.GitLabCommitNoteRequest;
 import com.vemo.codereview.platform.gitlab.model.GitLabNoteRequest;
 import com.vemo.codereview.platform.gitlab.model.GitLabProjectPayload;
@@ -86,6 +87,27 @@ public class GitLabApiClient {
             .get()
             .build();
         GitLabChangesPayload.Change[] response = execute(request, GitLabChangesPayload.Change[].class);
+        return Arrays.asList(response);
+    }
+
+    public List<GitLabCommitPayload> listRepositoryCommits(
+        String baseUrl,
+        Long projectId,
+        String branch,
+        String since,
+        String until,
+        String token) {
+        Request request = new Request.Builder()
+            .url(resolveBaseUrl(baseUrl)
+                + "/api/v4/projects/" + projectId
+                + "/repository/commits?ref_name=" + encodeQueryParam(branch)
+                + "&since=" + encodeQueryParam(since)
+                + "&until=" + encodeQueryParam(until)
+                + "&per_page=100")
+            .header("PRIVATE-TOKEN", resolveApiToken(token))
+            .get()
+            .build();
+        GitLabCommitPayload[] response = execute(request, GitLabCommitPayload[].class);
         return Arrays.asList(response);
     }
 

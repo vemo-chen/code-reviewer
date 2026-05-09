@@ -343,7 +343,7 @@ const initProjectChart = () => {
     },
     tooltip: {
       trigger: "axis",
-      formatter: (params) => {
+      formatter: (params: { name: string; value: string | number } | Array<{ name: string; value: string | number }>) => {
         const item = Array.isArray(params) ? params[0] : params;
         return `${item.name}<br/>提交次数：${item.value}`;
       }

@@ -5,6 +5,8 @@ import com.vemo.codereview.llm.model.ProjectLlmModelOptionResponse;
 import com.vemo.codereview.project.model.GitLabBranchOptionResponse;
 import com.vemo.codereview.project.model.GitLabProjectTestRequest;
 import com.vemo.codereview.project.model.GitLabProjectTestResponse;
+import com.vemo.codereview.project.model.ProjectCustomReviewBatchRequest;
+import com.vemo.codereview.project.model.ProjectCustomReviewBatchResponse;
 import com.vemo.codereview.project.model.ProjectDetailResponse;
 import com.vemo.codereview.project.model.ProjectPageResponse;
 import com.vemo.codereview.project.model.ProjectQueryRequest;
@@ -97,5 +99,12 @@ public class ProjectController {
     @PostMapping("/{id}/refresh")
     public ApiResponse<ProjectDetailResponse> refresh(@PathVariable Long id) {
         return ApiResponse.success(projectService.refresh(id));
+    }
+
+    @PostMapping("/{id}/custom-review-batches")
+    public ApiResponse<ProjectCustomReviewBatchResponse> createCustomReviewBatch(
+        @PathVariable Long id,
+        @RequestBody ProjectCustomReviewBatchRequest request) {
+        return ApiResponse.success(projectService.createCustomReviewBatch(id, request));
     }
 }

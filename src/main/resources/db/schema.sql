@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS code_review_event (
     operator_id VARCHAR(64),
     operator_name VARCHAR(64),
     submit_branch VARCHAR(255),
+    submit_time DATETIME,
     idempotent_key VARCHAR(128) NOT NULL,
     payload_json TEXT,
     status VARCHAR(32) NOT NULL,
@@ -16,7 +17,8 @@ CREATE TABLE IF NOT EXISTS code_review_event (
     updated_at DATETIME NOT NULL,
     UNIQUE KEY uk_review_event_idempotent_key (idempotent_key),
     KEY idx_review_event_project (project_id),
-    KEY idx_review_event_status (status)
+    KEY idx_review_event_status (status),
+    KEY idx_review_event_submit_time (submit_time)
 );
 
 CREATE TABLE IF NOT EXISTS code_review_task (
@@ -42,11 +44,55 @@ CREATE TABLE IF NOT EXISTS code_review_task (
     finished_at DATETIME,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    UNIQUE KEY uk_review_task_project_type_target (project_id, task_type, target_id),
     KEY idx_review_task_event (event_id),
     KEY idx_review_task_status (status),
     KEY idx_review_task_project (project_id),
     KEY idx_review_task_fix_status (fix_status),
     KEY idx_review_task_project_fix_status (project_id, fix_status)
+);
+
+CREATE TABLE IF NOT EXISTS code_review_batch (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    project_id BIGINT NOT NULL,
+    trigger_type VARCHAR(32) NOT NULL,
+    review_mode VARCHAR(32) NOT NULL,
+    start_time DATETIME NOT NULL,
+    end_time DATETIME NOT NULL,
+    branch_scope VARCHAR(1000),
+    status VARCHAR(32) NOT NULL,
+    created_by BIGINT,
+    created_by_name VARCHAR(64),
+    total_commit_count INT NOT NULL DEFAULT 0,
+    created_task_count INT NOT NULL DEFAULT 0,
+    retried_task_count INT NOT NULL DEFAULT 0,
+    skipped_reviewed_count INT NOT NULL DEFAULT 0,
+    skipped_running_count INT NOT NULL DEFAULT 0,
+    skipped_failed_count INT NOT NULL DEFAULT 0,
+    failed_count INT NOT NULL DEFAULT 0,
+    error_message VARCHAR(512),
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    finished_at DATETIME,
+    KEY idx_review_batch_project (project_id),
+    KEY idx_review_batch_status (status),
+    KEY idx_review_batch_created_by (created_by)
+);
+
+CREATE TABLE IF NOT EXISTS code_review_batch_task_rel (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    task_id BIGINT NOT NULL,
+    target_id VARCHAR(128) NOT NULL,
+    submit_branch VARCHAR(255),
+    action_type VARCHAR(32) NOT NULL,
+    message VARCHAR(512),
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY uk_review_batch_task_rel (batch_id, task_id),
+    KEY idx_review_batch_task_rel_batch (batch_id),
+    KEY idx_review_batch_task_rel_task (task_id),
+    KEY idx_review_batch_task_rel_target (target_id)
 );
 
 CREATE TABLE IF NOT EXISTS code_review_file (

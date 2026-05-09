@@ -53,6 +53,10 @@ public class GitLabWebhookPayload {
         private Long iid;
         private String title;
         private String action;
+        @JsonProperty("created_at")
+        private String createdAt;
+        @JsonProperty("updated_at")
+        private String updatedAt;
 
         @JsonProperty("target_branch")
         private String targetBranch;
@@ -68,6 +72,7 @@ public class GitLabWebhookPayload {
     @Setter
     public static class LastCommit {
         private String id;
+        private String timestamp;
     }
 
     @Getter

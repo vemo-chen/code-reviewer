@@ -219,6 +219,7 @@ public class GitLabWebhookHandlerService {
         eventEntity.setOperatorId(event.getOperatorId());
         eventEntity.setOperatorName(event.getOperatorName());
         eventEntity.setSubmitBranch(event.getSubmitBranch());
+        eventEntity.setSubmitTime(event.getSubmitTime());
         eventEntity.setIdempotentKey(event.getIdempotentKey());
         eventEntity.setPayloadJson(event.getPayloadJson());
         eventEntity.setStatus(ReviewEventLifecycle.RECEIVED.name());

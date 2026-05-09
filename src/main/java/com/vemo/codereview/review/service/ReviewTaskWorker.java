@@ -260,14 +260,20 @@ public class ReviewTaskWorker {
             return metadata;
         }
         CodeReviewEventEntity event = reviewEventStoreMapper.selectById(task.getEventId());
-        if (event == null || !StringUtils.hasText(event.getPayloadJson())) {
+        if (event == null) {
+            return metadata;
+        }
+        metadata.setSubmitter(event.getOperatorName());
+        metadata.setSubmitBranch(event.getSubmitBranch());
+        metadata.setSubmitTime(resolveSubmitTime(null, task, event));
+        if (!StringUtils.hasText(event.getPayloadJson())) {
             return metadata;
         }
         try {
             GitLabWebhookPayload payload = objectMapper.readValue(event.getPayloadJson(), GitLabWebhookPayload.class);
             metadata.setSubmitter(resolveSubmitter(payload, event));
             metadata.setSubmitBranch(resolveBranch(payload));
-            metadata.setSubmitTime(resolveSubmitTime(payload, task));
+            metadata.setSubmitTime(resolveSubmitTime(payload, task, event));
             String submitMessage = resolveSubmitMessage(payload, task);
             if (StringUtils.hasText(submitMessage)) {
                 metadata.setSubmitMessage(submitMessage);
@@ -306,11 +312,16 @@ public class ReviewTaskWorker {
         return null;
     }
 
-    private String resolveSubmitTime(GitLabWebhookPayload payload, CodeReviewTaskEntity task) {
+    private String resolveSubmitTime(GitLabWebhookPayload payload, CodeReviewTaskEntity task, CodeReviewEventEntity event) {
         String raw = null;
         if (payload != null && payload.getCommits() != null && !payload.getCommits().isEmpty()) {
             GitLabWebhookPayload.Commit latest = payload.getCommits().get(payload.getCommits().size() - 1);
             raw = latest == null ? null : latest.getTimestamp();
+        }
+        if (!StringUtils.hasText(raw) && event != null && event.getSubmitTime() != null) {
+            SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            formatter.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));
+            return formatter.format(event.getSubmitTime());
         }
         if (!StringUtils.hasText(raw) && task != null && task.getCreatedAt() != null) {
             return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(task.getCreatedAt());

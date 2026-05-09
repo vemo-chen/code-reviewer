@@ -1,5 +1,6 @@
 package com.vemo.codereview.review.service;
 
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.dashboard.model.BatchRetryResponse;
 import com.vemo.codereview.project.service.ProjectPermissionService;
@@ -42,6 +43,14 @@ public class ReviewTaskManualRetryService {
             throw new DomainException("TASK_RETRY_INVALID", "Only finished review tasks can be retried");
         }
 
+        resetAndDispatch(task);
+    }
+
+    public void resetAndDispatch(CodeReviewTaskEntity task) {
+        if (task == null || task.getId() == null) {
+            throw new DomainException("TASK_NOT_FOUND", "Review task not found");
+        }
+        Date now = new Date();
         task.setStatus(ReviewTaskLifecycle.PENDING.name());
         task.setRetryCount(0);
         task.setNextRetryAt(null);
@@ -49,9 +58,24 @@ public class ReviewTaskManualRetryService {
         task.setErrorMessage(null);
         task.setStartedAt(null);
         task.setFinishedAt(null);
-        task.setUpdatedAt(new Date());
-        codeReviewTaskMapper.updateById(task);
+        task.setUpdatedAt(now);
 
+        UpdateWrapper<CodeReviewTaskEntity> updateWrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        updateWrapper.eq("id", task.getId())
+            .set("status", ReviewTaskLifecycle.PENDING.name())
+            .set("retry_count", 0)
+            .set("next_retry_at", null)
+            .set("error_code", null)
+            .set("error_message", null)
+            .set("started_at", null)
+            .set("finished_at", null)
+            .set("updated_at", now);
+        codeReviewTaskMapper.update(null, updateWrapper);
+
+        reviewTaskDispatcher.dispatch(task.getId());
+    }
+
+    public void dispatch(Long taskId) {
         reviewTaskDispatcher.dispatch(taskId);
     }
 

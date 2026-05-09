@@ -21,6 +21,7 @@ public class ReviewTaskDetailResponse {
     private String ownerDisplayName;
     private Integer retryCount;
     private String operatorName;
+    private Date submitTime;
     private Date createdAt;
     private Date finishedAt;
     private String riskLevel;

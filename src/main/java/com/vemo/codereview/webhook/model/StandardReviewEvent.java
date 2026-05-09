@@ -1,5 +1,6 @@
 package com.vemo.codereview.webhook.model;
 
+import java.util.Date;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,6 +17,7 @@ public class StandardReviewEvent {
     private String operatorId;
     private String operatorName;
     private String submitBranch;
+    private Date submitTime;
     private String targetId;
     private String targetTitle;
     private String idempotentKey;

@@ -23,6 +23,7 @@ public class CodeReviewEventEntity {
     private String operatorId;
     private String operatorName;
     private String submitBranch;
+    private Date submitTime;
     private String idempotentKey;
     private String payloadJson;
     private String status;
