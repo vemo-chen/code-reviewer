@@ -57,17 +57,32 @@
           <div class="content-card">
             <h4>功能说明</h4>
             <ul class="manual-list">
-              <li>多模型支持：当前已兼容 DeepSeek、ZhipuAI、OpenAI、Anthropic、通义千问和 Ollama。</li>
-              <li>项目级配置：支持项目独立配置 Prompt、模型、Webhook Token、通知方式和审查分支。</li>
-              <li>审查与整改闭环：支持审查结果查看、整改提交、Owner 复审和通过 / 驳回。</li>
-              <li>消息通知：审查结果可按项目配置推送至企业微信。</li>
-              <li>可视化看板：集中展示项目、开发者和审查质量相关统计。</li>
+              <li>🚀 多模型支持 <span style="color:red;">（当前版本仅支持DeepSeek、其他厂商需要做一定适配）</span> </li>
+              <ul>
+                <li>兼容 DeepSeek、ZhipuAI、OpenAI、Anthropic、通义千问 和 Ollama，想用哪个就用哪个。</li>
+              </ul>
+              <li>🎭 项目级别的配置</li>
+              <ul>
+                <li>支持项目级 Prompt、模型、通知、Webhook Token 、审查分支等独立配置。</li>
+              </ul>
+              <li>📅 CR评审功能、整改闭环</li>
+              <ul>
+                <li>支持项目级 审查与整改闭环：支持审查结果查看、整改提交、Owner 复审和通过 / 驳回。</li>
+              </ul>
+              <li>📢 消息即时推送</li>
+              <ul>
+                <li>审查结果一键直达 企业微信</li>
+              </ul>
+              <li>📊 可视化 Dashboard</li>
+              <ul>
+                <li>集中展示所有 Code Review 记录，项目统计、开发者统计</li>
+              </ul>
             </ul>
             <h4>职责说明</h4>
             <ul class="manual-list">
-              <li>管理员通常负责维护大模型、创建项目、分配成员和指定项目 Owner。</li>
-              <li>项目 Owner 负责本项目配置维护、整改复审以及自定义审查等管理动作。</li>
-              <li>项目成员负责查看审查结果、修复代码并提交复审。</li>
+              <li>🤵 管理员通常负责配置大模型、创建项目、分配成员、指定项目 Owner。</li>
+              <li>🤵 当然，你也可以创建项目，作为项目 Owner，分配成员，负责审核整改结果，决定审查通过或驳回。</li>
+              <li>🤵 项目成员负责查看审查结果、修改代码并提交复审。</li>
             </ul>
             <div class="manual-note">
               首次使用时，建议先完成“大模型配置”和“项目配置”，再到 GitLab 项目中接入 Webhook。
@@ -85,13 +100,29 @@
           </div>
           <div class="content-card">
             <ol class="manual-steps">
-              <li>创建 Access Token。
-                <span class="inline-note">可以使用个人 Token，也可以使用项目级 Token。</span>
-              </li>
-              <li>进入 GitLab 对应项目，打开 <strong>Settings / Integrations</strong>。</li>
-              <li>在 URL 中填写系统提供的 Webhook 地址，一般是 <code>/api/webhooks/gitlab</code>。</li>
-              <li>在 Secret Token 中填写系统要求的 Access Token；若项目内已配置项目级 Token，则优先使用项目级 Token。</li>
-              <li>至少开启 <strong>Push events</strong> 和 <strong>Merge request events</strong>。</li>
+              <li>创建Access Token</li>
+              <ul>
+                <li>方法一：在 GitLab 个人设置中，创建一个 Personal Access Token。</li>
+                <li>方法二：在 GitLab 项目设置中，创建Project Access Token</li>
+              </ul>
+              <li>配置 Webhook</li>
+              <ul>
+                <li>进入 GitLab 对应项目，打开 <strong>Settings / Integrations</strong>。</li>
+                <li>在 URL 填写系统提供的 Webhook 地址，一般是 <code>/api/webhooks/gitlab</code>; 当前环境是<code>http://10.12.8.132:8765/api/webhooks/gitlab</code>。</li>
+                <li>在 Secret Token 中填写系统要求的<strong> Access Token</strong>。若项目已配置项目级 Token，则优先使用项目级 Token。</li>
+                <li>勾选你希望触发的事件，至少建议开启 <strong>Push events</strong> 和 <strong>Merge request events</strong>。</li>
+                <div class="webhook-image-block">
+                  <el-image
+                      :src="gitlabSettingImage"
+                      :preview-src-list="[gitlabSettingImage]"
+                      preview-teleported
+                      fit="contain"
+                      alt="GitLab Webhook 配置"
+                      class="webhook-image"
+                  />
+                </div>
+              </ul>
+
             </ol>
             <div class="manual-note">
               如果项目已接入但始终没有生成审查记录，优先检查 Webhook 地址、Token、审查分支和 AI 审查开关是否配置正确。
@@ -126,16 +157,19 @@
             <p class="section-index">04</p>
             <div>
               <h2>创建 / 配置项目</h2>
-              <p>项目是系统的业务承载单元，Webhook、Prompt、模型、成员和通知都在项目维度配置。</p>
+              <p>项目是系统的业务承载单元，Webhook、Prompt、模型、模板、成员和通知都在项目维度配置。</p>
             </div>
           </div>
           <div class="content-card">
             <ol class="manual-steps">
               <li>进入 <strong>项目管理</strong> 页面，点击新建项目。</li>
               <li>填写项目名称和 GitLab 项目 URL，系统会自动解析 GitLab 项目信息。</li>
-              <li>选择参与审查的项目分支；需要时可刷新分支列表重新拉取。</li>
-              <li>指定项目 Owner，并配置项目成员。</li>
-              <li>按需绑定项目模板、项目模型、Prompt 和通知配置。</li>
+              <li>选择参与审查的项目分支（新建时请点击刷新按钮，系统将根据GitLab URL 和 token 自动拉取分支）</li>
+              <li>指定项目 Owner。项目 Owner 负责审核整改结果。</li>
+              <li>配置项目成员。项目成员拥有查看本项目数据和提交复审的权限。</li>
+              <li>配置项目模板。项目模板用于区分 Java 后端、前端、Go、通用等不同技术栈项目的默认审查策略。</li>
+              <li>打开 <strong>AI 审查</strong> 开关，并在同一卡片里选择项目使用的模型。</li>
+              <li>按需要设置 GitLab Note 回写、企业微信通知、项目 Prompt、项目级 Webhook Token。</li>
               <li>保存后，再回到 GitLab 项目中配置 Webhook。</li>
             </ol>
             <div class="manual-note">
@@ -268,6 +302,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
+import gitlabSettingImage from "../../assets/images/gitlab-setting.png";
 
 const historyDialogVisible = ref(false);
 
@@ -642,6 +677,19 @@ code {
   color: #af6300;
   font-size: 12px;
   font-weight: 700;
+}
+
+.webhook-image-block {
+  margin-top: 8px;
+}
+
+.webhook-image {
+  width: min(100%, 360px);
+  border-radius: 12px;
+  border: 1px solid rgba(205, 190, 165, 0.42);
+  box-shadow: 0 12px 28px rgba(97, 78, 53, 0.12);
+  cursor: zoom-in;
+  overflow: hidden;
 }
 
 @media (max-width: 1100px) {
