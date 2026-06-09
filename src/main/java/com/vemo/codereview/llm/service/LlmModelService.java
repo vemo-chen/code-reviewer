@@ -104,6 +104,7 @@ public class LlmModelService {
             item.setMaintainerProjectName(projectNameMap.get(entity.getMaintainerProjectId()));
             item.setManageable(canManage(entity));
             item.setEnabled(entity.getEnabled());
+            item.setThinkingEnabled(Boolean.TRUE.equals(entity.getThinkingEnabled()));
             item.setUpdatedAt(entity.getUpdatedAt());
             response.getRecords().add(item);
         }
@@ -197,6 +198,11 @@ public class LlmModelService {
         request.setModel(runtimeConfig.getModelName());
         request.setTemperature(runtimeConfig.getTemperature() == null ? null : runtimeConfig.getTemperature().doubleValue());
         request.setMaxTokens(runtimeConfig.getMaxTokens());
+        if ("DEEPSEEK".equalsIgnoreCase(runtimeConfig.getProviderCode())) {
+            request.setThinking(new ChatCompletionRequest.Thinking(
+                Boolean.TRUE.equals(runtimeConfig.getThinkingEnabled()) ? "enabled" : "disabled"
+            ));
+        }
         List<ChatCompletionRequest.Message> messages = new ArrayList<ChatCompletionRequest.Message>();
         messages.add(new ChatCompletionRequest.Message("system", "You are a connection test assistant."));
         messages.add(new ChatCompletionRequest.Message("user", "Reply with OK only."));
@@ -209,6 +215,7 @@ public class LlmModelService {
         testResponse.setProviderType(runtimeConfig.getProviderType());
         testResponse.setModelName(runtimeConfig.getModelName());
         testResponse.setResponseModel(response.getModel());
+        testResponse.setThinkingEnabled(Boolean.TRUE.equals(runtimeConfig.getThinkingEnabled()));
         testResponse.setMessage(extractMessage(response));
         return testResponse;
     }
@@ -398,6 +405,7 @@ public class LlmModelService {
         entity.setTimeoutMs(request.getTimeoutMs() == null ? DEFAULT_TIMEOUT_MS : request.getTimeoutMs());
         entity.setMaxTokens(request.getMaxTokens() == null ? DEFAULT_MAX_TOKENS : request.getMaxTokens());
         entity.setTemperature(request.getTemperature() == null ? DEFAULT_TEMPERATURE : request.getTemperature());
+        entity.setThinkingEnabled(request.getThinkingEnabled() != null ? request.getThinkingEnabled() : Boolean.FALSE);
         entity.setRemark(StringUtils.hasText(request.getRemark()) ? request.getRemark().trim() : null);
     }
 
@@ -473,6 +481,7 @@ public class LlmModelService {
         response.setTimeoutMs(entity.getTimeoutMs());
         response.setMaxTokens(entity.getMaxTokens());
         response.setTemperature(entity.getTemperature());
+        response.setThinkingEnabled(Boolean.TRUE.equals(entity.getThinkingEnabled()));
         response.setRemark(entity.getRemark());
         response.setProjectIds(loadProjectIds(entity.getId()));
         response.setCreatedAt(entity.getCreatedAt());
@@ -574,6 +583,7 @@ public class LlmModelService {
         runtimeConfig.setTimeoutMs(entity.getTimeoutMs());
         runtimeConfig.setMaxTokens(entity.getMaxTokens());
         runtimeConfig.setTemperature(entity.getTemperature());
+        runtimeConfig.setThinkingEnabled(Boolean.TRUE.equals(entity.getThinkingEnabled()));
         return runtimeConfig;
     }
 }

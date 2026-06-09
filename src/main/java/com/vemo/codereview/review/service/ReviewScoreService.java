@@ -56,12 +56,12 @@ public class ReviewScoreService {
 
     private String buildScoreReason(List<ReviewCommentDraft> comments, int suggestedScore, int deductionScore, int finalScore) {
         List<String> parts = new ArrayList<String>();
-        parts.add("Suggested score: " + suggestedScore);
+        parts.add("模型建议分: " + suggestedScore);
 
         if (comments == null || comments.isEmpty() || deductionScore <= 0) {
-            parts.add("No project hard-rule deduction");
-            parts.add("Final score: " + finalScore);
-            return String.join("; ", parts);
+            parts.add("未命中项目硬性规则扣分");
+            parts.add("最终得分: " + finalScore);
+            return String.join("；", parts);
         }
 
         Map<String, Integer> countsBySeverity = new LinkedHashMap<String, Integer>();
@@ -80,18 +80,18 @@ public class ReviewScoreService {
         }
 
         if (countsBySeverity.isEmpty()) {
-            parts.add("No project hard-rule deduction");
-            parts.add("Final score: " + finalScore);
-            return String.join("; ", parts);
+            parts.add("未命中项目硬性规则扣分");
+            parts.add("最终得分: " + finalScore);
+            return String.join("；", parts);
         }
 
         for (Map.Entry<String, Integer> entry : countsBySeverity.entrySet()) {
             int count = entry.getValue();
             int amount = resolveDeduction(entry.getKey()) * count;
-            parts.add("Deducted " + amount + " points for " + count + " " + entry.getKey() + " hard-rule issue(s)");
+            parts.add("命中 " + count + " 个" + toChineseSeverity(entry.getKey()) + "级项目硬性规则问题，扣 " + amount + " 分");
         }
-        parts.add("Final score: " + finalScore);
-        return String.join("; ", parts);
+        parts.add("最终得分: " + finalScore);
+        return String.join("；", parts);
     }
 
     private boolean isHardRuleViolation(ReviewCommentDraft comment) {
@@ -147,5 +147,19 @@ public class ReviewScoreService {
             return normalized;
         }
         return "MEDIUM";
+    }
+
+    private String toChineseSeverity(String severity) {
+        String normalized = normalizeSeverity(severity);
+        if ("CRITICAL".equals(normalized)) {
+            return "严重";
+        }
+        if ("HIGH".equals(normalized)) {
+            return "高";
+        }
+        if ("LOW".equals(normalized)) {
+            return "低";
+        }
+        return "中";
     }
 }

@@ -22,6 +22,7 @@ public class LlmModelUpsertRequest {
     private Integer timeoutMs;
     private Integer maxTokens;
     private BigDecimal temperature;
+    private Boolean thinkingEnabled;
     private String remark;
     private List<Long> projectIds;
 }

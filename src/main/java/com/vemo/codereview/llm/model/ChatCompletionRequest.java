@@ -16,6 +16,10 @@ public class ChatCompletionRequest {
     @JsonProperty("max_tokens")
     private Integer maxTokens;
 
+    private Thinking thinking;
+    @JsonProperty("response_format")
+    private ResponseFormat responseFormat;
+
     @Getter
     @Setter
     public static class Message {
@@ -28,6 +32,32 @@ public class ChatCompletionRequest {
         public Message(String role, String content) {
             this.role = role;
             this.content = content;
+        }
+    }
+
+    @Getter
+    @Setter
+    public static class Thinking {
+        private String type;
+
+        public Thinking() {
+        }
+
+        public Thinking(String type) {
+            this.type = type;
+        }
+    }
+
+    @Getter
+    @Setter
+    public static class ResponseFormat {
+        private String type;
+
+        public ResponseFormat() {
+        }
+
+        public ResponseFormat(String type) {
+            this.type = type;
         }
     }
 }

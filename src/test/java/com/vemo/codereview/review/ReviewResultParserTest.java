@@ -2,7 +2,9 @@ package com.vemo.codereview.review;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
 import com.vemo.codereview.review.model.ReviewSummary;
 import com.vemo.codereview.review.service.ReviewResponseParser;
@@ -88,5 +90,23 @@ class ReviewResultParserTest {
         assertEquals(1, summary.getComments().size());
         assertEquals(Integer.valueOf(13), summary.getComments().get(0).getLine());
         assertEquals("HIGH", summary.getComments().get(0).getSeverity());
+    }
+
+    @Test
+    void shouldThrowTruncatedErrorWhenFinishReasonIsLength() {
+        ChatCompletionResponse response = new ChatCompletionResponse();
+        ChatCompletionResponse.Message message = new ChatCompletionResponse.Message();
+        message.setRole("assistant");
+        message.setContent("{\"suggestedScore\":72,\"summary\":\"truncated\"");
+        ChatCompletionResponse.Choice choice = new ChatCompletionResponse.Choice();
+        choice.setIndex(0);
+        choice.setFinishReason("length");
+        choice.setMessage(message);
+        response.setChoices(Collections.singletonList(choice));
+
+        ReviewResponseParser parser = new ReviewResponseParser(new ObjectMapper());
+        DomainException exception = assertThrows(DomainException.class, () -> parser.parse(response));
+
+        assertEquals("REVIEW_RESULT_TRUNCATED", exception.getCode());
     }
 }

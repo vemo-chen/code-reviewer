@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS llm_model_config (
     timeout_ms INT,
     max_tokens INT,
     temperature DECIMAL(5,2),
+    thinking_enabled TINYINT(1) NOT NULL DEFAULT 0,
     remark VARCHAR(500),
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,

@@ -33,6 +33,12 @@ public class ReviewResponseParser {
         if (content == null || content.trim().isEmpty()) {
             throw new DomainException("REVIEW_RESULT_EMPTY", "Model response content is empty");
         }
+        if (isLengthTruncated(response)) {
+            throw new DomainException(
+                "REVIEW_RESULT_TRUNCATED",
+                "Model response was truncated before JSON completed. Increase max tokens or reduce prompt size."
+            );
+        }
 
         try {
             JsonNode root = objectMapper.readTree(extractJson(content));
@@ -51,6 +57,14 @@ public class ReviewResponseParser {
                 "Failed to parse review result JSON. content=" + abbreviate(content)
             );
         }
+    }
+
+    private boolean isLengthTruncated(ChatCompletionResponse response) {
+        if (response == null || response.getChoices() == null || response.getChoices().isEmpty()) {
+            return false;
+        }
+        ChatCompletionResponse.Choice choice = response.getChoices().get(0);
+        return choice != null && "length".equalsIgnoreCase(choice.getFinishReason());
     }
 
     private String extractJson(String content) {

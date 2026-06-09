@@ -28,8 +28,28 @@ public class LlmGatewayService {
         request.setModel(runtimeConfig.getModelName());
         request.setTemperature(runtimeConfig.getTemperature() == null ? null : runtimeConfig.getTemperature().doubleValue());
         request.setMaxTokens(runtimeConfig.getMaxTokens());
+        applyThinkingConfig(request, runtimeConfig);
+        applyResponseFormat(request, runtimeConfig);
         request.setMessages(buildMessages(reviewPrompt));
         return chatModelClientFactory.getClient(runtimeConfig.getProviderType()).chatCompletion(request, runtimeConfig);
+    }
+
+    private void applyThinkingConfig(ChatCompletionRequest request, LlmRuntimeConfig runtimeConfig) {
+        if (!"DEEPSEEK".equalsIgnoreCase(runtimeConfig.getProviderCode())) {
+            request.setThinking(null);
+            return;
+        }
+        request.setThinking(new ChatCompletionRequest.Thinking(
+            Boolean.TRUE.equals(runtimeConfig.getThinkingEnabled()) ? "enabled" : "disabled"
+        ));
+    }
+
+    private void applyResponseFormat(ChatCompletionRequest request, LlmRuntimeConfig runtimeConfig) {
+        if (!"DEEPSEEK".equalsIgnoreCase(runtimeConfig.getProviderCode())) {
+            request.setResponseFormat(null);
+            return;
+        }
+        request.setResponseFormat(new ChatCompletionRequest.ResponseFormat("json_object"));
     }
 
     private List<ChatCompletionRequest.Message> buildMessages(ReviewPromptPayload reviewPrompt) {

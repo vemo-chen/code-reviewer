@@ -28,6 +28,7 @@ public class LlmProviderConfigEntity {
     private Integer timeoutMs;
     private Integer maxTokens;
     private BigDecimal temperature;
+    private Boolean thinkingEnabled;
     private String remark;
     private Date createdAt;
     private Date updatedAt;

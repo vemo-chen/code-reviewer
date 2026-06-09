@@ -31,6 +31,7 @@ public class LlmModelPageResponse {
         private String maintainerProjectName;
         private Boolean manageable;
         private Boolean enabled;
+        private Boolean thinkingEnabled;
         private Date updatedAt;
     }
 }

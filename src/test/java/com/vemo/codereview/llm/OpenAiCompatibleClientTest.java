@@ -46,9 +46,12 @@ class OpenAiCompatibleClientTest {
         ChatCompletionResponse response = openAiCompatibleClient.chatCompletion(buildRequest(), runtimeConfig);
 
         RecordedRequest recordedRequest = mockWebServer.takeRequest();
+        String requestBody = recordedRequest.getBody().readUtf8();
         assertEquals("/v1/chat/completions", recordedRequest.getPath());
         assertEquals("Bearer llm-key", recordedRequest.getHeader("Authorization"));
-        assertTrue(recordedRequest.getBody().readUtf8().contains("\"model\":\"deepseek-chat\""));
+        assertTrue(requestBody.contains("\"model\":\"deepseek-chat\""));
+        assertTrue(requestBody.contains("\"thinking\":{\"type\":\"enabled\"}"));
+        assertTrue(requestBody.contains("\"response_format\":{\"type\":\"json_object\"}"));
         assertEquals("deepseek-chat", response.getModel());
         assertEquals("{\"summary\":\"ok\"}", response.getFirstContent());
         assertEquals(Integer.valueOf(120), response.getUsage().getTotalTokens());
@@ -80,6 +83,7 @@ class OpenAiCompatibleClientTest {
         runtimeConfig.setTimeoutMs(3000);
         runtimeConfig.setMaxTokens(2048);
         runtimeConfig.setTemperature(new BigDecimal("0.1"));
+        runtimeConfig.setThinkingEnabled(Boolean.TRUE);
         return runtimeConfig;
     }
 
@@ -88,6 +92,8 @@ class OpenAiCompatibleClientTest {
         request.setModel("deepseek-chat");
         request.setTemperature(0.1D);
         request.setMaxTokens(2048);
+        request.setThinking(new ChatCompletionRequest.Thinking("enabled"));
+        request.setResponseFormat(new ChatCompletionRequest.ResponseFormat("json_object"));
         request.setMessages(Arrays.asList(
             new ChatCompletionRequest.Message("system", "system prompt"),
             new ChatCompletionRequest.Message("user", "user prompt")

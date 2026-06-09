@@ -23,6 +23,7 @@ export interface LlmModelUpsertPayload {
   timeoutMs?: number | null;
   maxTokens?: number | null;
   temperature?: number | null;
+  thinkingEnabled?: boolean;
   remark?: string;
   projectIds?: number[];
 }

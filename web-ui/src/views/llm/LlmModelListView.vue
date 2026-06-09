@@ -219,6 +219,15 @@
             <el-form-item label="Temperature">
               <el-input-number v-model="form.temperature" class="full-width" :min="0" :max="2" :step="0.1" />
             </el-form-item>
+            <div class="switch-panel llm-switch-panel">
+              <div class="switch-item">
+                <div class="switch-item__copy">
+                  <span class="switch-item__title">是否开启思考模式</span>
+                  <p class="switch-item__desc">默认关闭。启用后会在请求体里附带 `thinking.enabled=true`，适用于支持思考模式的模型。</p>
+                </div>
+                <el-switch v-model="form.thinkingEnabled" />
+              </div>
+            </div>
           </section>
 
           <section class="form-section">
@@ -261,9 +270,15 @@
                 <p class="field-hint">维护项目会自动加入可用范围，共享项目仅拥有使用权，不拥有编辑权。</p>
               </el-form-item>
             </template>
-            <el-form-item label="是否启用">
-              <el-switch v-model="form.enabled" />
-            </el-form-item>
+            <div class="switch-panel llm-switch-panel">
+              <div class="switch-item">
+                <div class="switch-item__copy">
+                  <span class="switch-item__title">是否启用</span>
+                  <p class="switch-item__desc">关闭后该模型配置不会出现在项目可选模型列表中，也不会用于新的审查任务。</p>
+                </div>
+                <el-switch v-model="form.enabled" />
+              </div>
+            </div>
             <el-form-item label="备注">
               <el-input v-model="form.remark" type="textarea" :rows="4" placeholder="可选，补充这条模型配置的用途说明" />
             </el-form-item>
@@ -332,6 +347,7 @@ interface LlmModelForm {
   timeoutMs?: number | null;
   maxTokens?: number | null;
   temperature?: number | null;
+  thinkingEnabled: boolean;
   remark: string;
   projectIds: number[];
 }
@@ -413,6 +429,7 @@ const form = reactive<LlmModelForm>({
   timeoutMs: DEFAULT_TIMEOUT_MS,
   maxTokens: DEFAULT_MAX_TOKENS,
   temperature: DEFAULT_TEMPERATURE,
+  thinkingEnabled: false,
   remark: "",
   projectIds: []
 });
@@ -491,6 +508,7 @@ const resetForm = () => {
   form.timeoutMs = DEFAULT_TIMEOUT_MS;
   form.maxTokens = DEFAULT_MAX_TOKENS;
   form.temperature = DEFAULT_TEMPERATURE;
+  form.thinkingEnabled = false;
   form.remark = "";
   form.projectIds = [];
 };
@@ -614,6 +632,7 @@ const applyDetail = (detail: any) => {
   form.timeoutMs = detail.timeoutMs ?? null;
   form.maxTokens = detail.maxTokens ?? null;
   form.temperature = detail.temperature ?? null;
+  form.thinkingEnabled = Boolean(detail.thinkingEnabled);
   form.remark = detail.remark || "";
   form.projectIds = normalizeSharedProjectIds(detail.projectIds, detail.maintainerProjectId ?? null);
 };
@@ -651,6 +670,7 @@ const buildPayload = (): LlmModelUpsertPayload => ({
   timeoutMs: normalizeNumber(form.timeoutMs) ?? null,
   maxTokens: normalizeNumber(form.maxTokens) ?? null,
   temperature: normalizeNumber(form.temperature) ?? null,
+  thinkingEnabled: Boolean(form.thinkingEnabled),
   remark: normalizeText(form.remark),
   projectIds: form.scopeType === "PROJECT" ? normalizeProjectIds(form.projectIds) : []
 });
@@ -1039,6 +1059,52 @@ onMounted(() => {
 
 .field-hint--above {
   margin: 0 0 8px;
+}
+
+.switch-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.llm-switch-panel {
+  margin-top: 4px;
+}
+
+.switch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(235, 238, 245, 0.92) inset;
+}
+
+.switch-item__copy {
+  display: grid;
+  flex: 1 1 0;
+  gap: 4px;
+  min-width: 0;
+}
+
+.switch-item :deep(.el-switch) {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.switch-item__title {
+  color: var(--cr-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.switch-item__desc {
+  margin: 0;
+  color: var(--cr-text-soft);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .drawer-footer {

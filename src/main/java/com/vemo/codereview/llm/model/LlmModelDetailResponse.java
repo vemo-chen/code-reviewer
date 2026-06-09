@@ -27,6 +27,7 @@ public class LlmModelDetailResponse {
     private Integer timeoutMs;
     private Integer maxTokens;
     private BigDecimal temperature;
+    private Boolean thinkingEnabled;
     private String remark;
     private List<Long> projectIds = new ArrayList<Long>();
     private Date createdAt;
