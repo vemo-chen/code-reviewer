@@ -95,12 +95,41 @@ class GitLabApiClientTest {
         );
 
         RecordedRequest request = mockWebServer.takeRequest();
-        assertEquals("/api/v4/projects/group%2Fsubgroup%2Fmas-core/repository/branches?per_page=100", request.getPath());
+        assertEquals("/api/v4/projects/group%2Fsubgroup%2Fmas-core/repository/branches?per_page=100&page=1", request.getPath());
         assertEquals("project-token", request.getHeader("PRIVATE-TOKEN"));
         assertEquals(2, branches.size());
         assertEquals("main", branches.get(0).getName());
         assertEquals(Boolean.TRUE, branches.get(0).getDefaultBranch());
         assertEquals(Boolean.TRUE, branches.get(0).getProtectedBranch());
+    }
+
+    @Test
+    void shouldListProjectBranchesAcrossPages() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setHeader("X-Next-Page", "2")
+            .setBody("[{\"name\":\"main\",\"default\":true,\"protected\":true}]"));
+        mockWebServer.enqueue(new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("[{\"name\":\"release/2026\",\"default\":false,\"protected\":true}]"));
+
+        List<GitLabBranchPayload> branches = gitLabApiClient.listProjectBranches(
+            mockWebServer.url("").toString(),
+            "group/subgroup/mas-core",
+            "project-token"
+        );
+
+        RecordedRequest firstRequest = mockWebServer.takeRequest();
+        RecordedRequest secondRequest = mockWebServer.takeRequest();
+        assertEquals("/api/v4/projects/group%2Fsubgroup%2Fmas-core/repository/branches?per_page=100&page=1",
+            firstRequest.getPath());
+        assertEquals("/api/v4/projects/group%2Fsubgroup%2Fmas-core/repository/branches?per_page=100&page=2",
+            secondRequest.getPath());
+        assertEquals("project-token", firstRequest.getHeader("PRIVATE-TOKEN"));
+        assertEquals("project-token", secondRequest.getHeader("PRIVATE-TOKEN"));
+        assertEquals(2, branches.size());
+        assertEquals("main", branches.get(0).getName());
+        assertEquals("release/2026", branches.get(1).getName());
     }
 
     @Test

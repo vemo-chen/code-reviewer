@@ -11,6 +11,7 @@ import com.vemo.codereview.platform.gitlab.model.GitLabProjectPayload;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -56,14 +57,26 @@ public class GitLabApiClient {
     }
 
     public List<GitLabBranchPayload> listProjectBranches(String baseUrl, String projectPath, String token) {
-        Request request = new Request.Builder()
-            .url(resolveBaseUrl(baseUrl) + "/api/v4/projects/" + encodeProjectPath(projectPath)
-                + "/repository/branches?per_page=100")
-            .header("PRIVATE-TOKEN", resolveApiToken(token))
-            .get()
-            .build();
-        GitLabBranchPayload[] response = execute(request, GitLabBranchPayload[].class);
-        return Arrays.asList(response);
+        List<GitLabBranchPayload> branches = new ArrayList<GitLabBranchPayload>();
+        String resolvedBaseUrl = resolveBaseUrl(baseUrl);
+        String encodedProjectPath = encodeProjectPath(projectPath);
+        String resolvedToken = resolveApiToken(token);
+        int page = 1;
+        while (true) {
+            Request request = new Request.Builder()
+                .url(resolvedBaseUrl + "/api/v4/projects/" + encodedProjectPath
+                    + "/repository/branches?per_page=100&page=" + page)
+                .header("PRIVATE-TOKEN", resolvedToken)
+                .get()
+                .build();
+            BranchPage branchPage = executeBranchPage(request);
+            branches.addAll(Arrays.asList(branchPage.branches));
+            if (!StringUtils.hasText(branchPage.nextPage)) {
+                break;
+            }
+            page = parseNextPage(branchPage.nextPage, request.url().toString());
+        }
+        return branches;
     }
 
     public GitLabChangesPayload getMergeRequestChanges(String baseUrl, Long projectId, String mergeRequestIid, String token) {
@@ -185,6 +198,46 @@ public class GitLabApiClient {
         }
     }
 
+    private BranchPage executeBranchPage(Request request) {
+        try (Response response = okHttpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new DomainException(
+                    "GITLAB_API_ERROR",
+                    "GitLab API request failed. url=" + request.url()
+                        + ", status=" + response.code()
+                        + ", body=" + (response.body() == null ? "" : response.body().string())
+                );
+            }
+            if (response.body() == null) {
+                throw new DomainException("GITLAB_EMPTY_RESPONSE", "GitLab API response body is empty");
+            }
+            String body = response.body().string();
+            try {
+                GitLabBranchPayload[] branches = objectMapper.readValue(body, GitLabBranchPayload[].class);
+                return new BranchPage(branches, response.header("X-Next-Page"));
+            } catch (IOException ex) {
+                throw new DomainException(
+                    "GITLAB_RESPONSE_PARSE_ERROR",
+                    "Failed to parse GitLab API response. url=" + request.url()
+                        + ", status=" + response.code()
+                        + ", body=" + abbreviate(body)
+                );
+            }
+        } catch (IOException ex) {
+            log.info("gitlab test error.", ex);
+            throw new DomainException("GITLAB_API_ERROR", "Failed to call GitLab API");
+        }
+    }
+
+    private int parseNextPage(String nextPage, String requestUrl) {
+        try {
+            return Integer.parseInt(nextPage.trim());
+        } catch (NumberFormatException ex) {
+            throw new DomainException("GITLAB_RESPONSE_PARSE_ERROR",
+                "Failed to parse GitLab pagination header. url=" + requestUrl + ", nextPage=" + nextPage);
+        }
+    }
+
     private void executeWithoutResponse(Request request) {
         try (Response response = okHttpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
@@ -275,5 +328,15 @@ public class GitLabApiClient {
             return body;
         }
         return body.substring(0, 500) + "...";
+    }
+
+    private static class BranchPage {
+        private final GitLabBranchPayload[] branches;
+        private final String nextPage;
+
+        private BranchPage(GitLabBranchPayload[] branches, String nextPage) {
+            this.branches = branches == null ? new GitLabBranchPayload[0] : branches;
+            this.nextPage = nextPage;
+        }
     }
 }

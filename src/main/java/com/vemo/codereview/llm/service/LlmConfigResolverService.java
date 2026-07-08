@@ -84,6 +84,7 @@ public class LlmConfigResolverService {
         runtimeConfig.setTimeoutMs(entity.getTimeoutMs());
         runtimeConfig.setMaxTokens(entity.getMaxTokens());
         runtimeConfig.setTemperature(entity.getTemperature());
+        runtimeConfig.setThinkingEnabled(Boolean.TRUE.equals(entity.getThinkingEnabled()));
         runtimeConfig.setFallbackConfig(fallbackConfig);
         return runtimeConfig;
     }

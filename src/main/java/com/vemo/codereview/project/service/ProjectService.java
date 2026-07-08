@@ -1,6 +1,7 @@
 package com.vemo.codereview.project.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.vemo.codereview.auth.service.CurrentUserService;
 import com.vemo.codereview.common.exception.DomainException;
@@ -110,6 +111,7 @@ public class ProjectService {
         entity.setOwnerUserId(ownerUserId);
         entity.setUpdatedAt(new Date());
         projectProfileMapper.updateById(entity);
+        clearReviewBranchesIfRequested(entity, request);
         syncProjectMembers(entity.getId(), memberUserIds);
         llmModelService.requireProjectModelUsable(entity.getId(), request.getLlmModelId());
         entity.setLlmModelId(request.getLlmModelId());
@@ -251,6 +253,17 @@ public class ProjectService {
         entity.setWecomWebhookUrl(normalizeText(request.getWecomWebhookUrl()));
         entity.setPromptContent(normalizeText(request.getPromptContent()));
         entity.setActive(request.getActive() == null ? Boolean.TRUE : request.getActive());
+    }
+
+    private void clearReviewBranchesIfRequested(ProjectProfileEntity entity, ProjectUpsertRequest request) {
+        if (request.getReviewBranches() == null || StringUtils.hasText(request.getReviewBranches())) {
+            return;
+        }
+        LambdaUpdateWrapper<ProjectProfileEntity> wrapper = new LambdaUpdateWrapper<ProjectProfileEntity>()
+            .eq(ProjectProfileEntity::getId, entity.getId())
+            .set(ProjectProfileEntity::getReviewBranches, null);
+        projectProfileMapper.update(null, wrapper);
+        entity.setReviewBranches(null);
     }
 
     private void fillGitLabProjectInfo(ProjectProfileEntity entity, String gitlabProjectUrl, String token) {

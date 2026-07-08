@@ -567,7 +567,7 @@ const reviewBranchOptions = computed<ReviewBranchOption[]>(() => {
 const normalizeText = (value: string | null | undefined) => typeof value === "string" && value.trim() ? value.trim() : undefined;
 const normalizeUserIds = (value: number[] | undefined | null) => Array.from(new Set((value || []).filter((item) => typeof item === "number" && Number.isFinite(item))));
 const parseBranches = (value: string | null | undefined) => Array.from(new Set((value || "").split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean)));
-const serializeBranches = (value: string[]) => normalizeText(Array.from(new Set(value.map((item) => item.trim()).filter(Boolean))).join(","));
+const serializeBranches = (value: string[]) => Array.from(new Set(value.map((item) => item.trim()).filter(Boolean))).join(",");
 const buildCustomReviewSummary = (result: ProjectCustomReviewBatchResponse) => {
   const parts = [
     `batch #${result.batchId}`,
