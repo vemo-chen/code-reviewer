@@ -2,6 +2,7 @@ package com.vemo.codereview.review.mapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.vemo.codereview.CodeReviewerApplication;
 import com.vemo.codereview.review.entity.CodeReviewBatchEntity;
@@ -51,6 +52,9 @@ class ReviewSchemaSmokeTest {
         event.setOperatorId("u001");
         event.setOperatorName("alice");
         event.setSubmitTime(now);
+        event.setMrState("OPEN");
+        event.setMrHeadSha("head-a");
+        event.setMergedSha(null);
         event.setIdempotentKey("gitlab-1001-merge_request-mr-1");
         event.setPayloadJson("{\"object_kind\":\"merge_request\"}");
         event.setStatus("PENDING");
@@ -78,6 +82,9 @@ class ReviewSchemaSmokeTest {
 
         assertEquals("gitlab", savedEvent.getSourcePlatform());
         assertNotNull(savedEvent.getSubmitTime());
+        assertEquals("OPEN", savedEvent.getMrState());
+        assertEquals("head-a", savedEvent.getMrHeadSha());
+        assertNull(savedEvent.getMergedSha());
         assertEquals(event.getId(), savedTask.getEventId());
         assertEquals("MR_REVIEW", savedTask.getTaskType());
 
