@@ -20,6 +20,7 @@ import com.vemo.codereview.platform.gitlab.service.GitLabReviewTargetService;
 import com.vemo.codereview.project.service.ProjectConfigService;
 import com.vemo.codereview.projecttemplate.service.ProjectTemplateResolverService;
 import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
+import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewCommentStoreMapper;
@@ -255,6 +256,48 @@ class ProjectScopedReviewFlowTest {
         verify(reviewStateService).markTaskSuccess(task);
         verify(reviewStateService).markEventProcessed(10L);
         verify(reviewRetryService, never()).handleFailure(eq(task), any(RuntimeException.class));
+    }
+
+    @Test
+    void shouldFetchPushRangeInsteadOfSingleCommitDiff() {
+        CodeReviewTaskEntity task = buildTask();
+        task.setTaskType("PUSH_REVIEW");
+        task.setTargetId("head-c");
+        CodeReviewEventEntity event = new CodeReviewEventEntity();
+        event.setId(10L);
+        event.setObjectType("push");
+        event.setSubmitBranch("test-cr");
+        event.setPayloadJson("{\"object_kind\":\"push\",\"before\":\"base-a\",\"after\":\"head-c\","
+            + "\"total_commits_count\":3,\"commits\":[{\"id\":\"head-c\"}]}");
+        ProjectProfileEntity projectConfig = buildProjectConfig(false, false, null, null);
+        ReviewPromptPayload prompt = new ReviewPromptPayload();
+        ChatCompletionResponse response = new ChatCompletionResponse();
+        response.setModel("deepseek-chat");
+        ReviewSummary summary = buildReviewSummary();
+
+        when(reviewTaskStoreMapper.selectById(1L)).thenReturn(task);
+        when(reviewEventStoreMapper.selectById(10L)).thenReturn(event);
+        when(projectConfigService.findById(2001L)).thenReturn(projectConfig);
+        when(reviewRuleService.getDefaultPromptText()).thenReturn("default prompt");
+        when(projectTemplateResolverService.resolveEffectivePrompt(eq(projectConfig), eq("default prompt"))).thenReturn(null);
+        when(projectTemplateResolverService.resolveEffectiveFileExtensions(eq(projectConfig))).thenReturn(null);
+        when(gitLabReviewTargetService.getPushChanges(
+            eq("http://gitlab.example.com/group/subgroup/mas-core"), eq(1001L), eq("base-a"), eq("head-c"), eq("test-cr"),
+            any(), eq("project-token"))).thenReturn(buildChangesPayload());
+        when(promptBuilderService.build(any(ReviewExecutionContext.class))).thenReturn(prompt);
+        when(llmGatewayService.review(2001L, prompt)).thenReturn(response);
+        when(reviewResponseParser.parse(response)).thenReturn(summary);
+        when(reviewResultPersistenceService.persist(eq(1L), eq("openai-compatible"), eq("deepseek-chat"),
+            eq(summary), eq(response), any(ReviewExecutionContext.class))).thenReturn(buildResultEntity(9004L));
+        when(reviewCommentStoreMapper.selectList(any())).thenReturn(Collections.<CodeReviewCommentEntity>emptyList());
+
+        ReviewExecutionContext context = reviewTaskWorker.process(1L);
+
+        assertEquals("push", context.getTargetType());
+        assertEquals("base-a", context.getBeforeSha());
+        assertEquals("head-c", context.getAfterSha());
+        assertEquals(Integer.valueOf(3), context.getCommitCount());
+        verify(gitLabReviewTargetService, never()).getCommitChanges(any(), anyLong(), any(), any(), any());
     }
 
     private CodeReviewTaskEntity buildTask() {

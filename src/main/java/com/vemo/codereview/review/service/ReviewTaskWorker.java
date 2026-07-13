@@ -234,20 +234,40 @@ public class ReviewTaskWorker {
                 gitLabApiToken
             );
         } else if ("PUSH_REVIEW".equals(task.getTaskType())) {
-            context.setTargetType("commit");
-            changes = gitLabReviewTargetService.getCommitChanges(
-                gitLabProjectUrl,
-                gitLabProjectId,
-                task.getTargetId(),
-                task.getTargetTitle(),
-                gitLabApiToken
-            );
+            CodeReviewEventEntity event = task.getEventId() == null ? null
+                : reviewEventStoreMapper.selectById(task.getEventId());
+            if (event != null && "push".equalsIgnoreCase(event.getObjectType())) {
+                GitLabWebhookPayload push = readPushPayload(event);
+                context.setTargetType("push");
+                context.setPushBranch(event.getSubmitBranch());
+                context.setBeforeSha(push.getBefore());
+                context.setAfterSha(push.getAfter());
+                context.setCommitCount(push.getTotalCommitsCount() == null
+                    ? (push.getCommits() == null ? 0 : push.getCommits().size()) : push.getTotalCommitsCount());
+                context.setSourceRef(push.getAfter());
+                context.setTargetRef(push.getBefore());
+                changes = gitLabReviewTargetService.getPushChanges(
+                    gitLabProjectUrl, gitLabProjectId, push.getBefore(), push.getAfter(), event.getSubmitBranch(),
+                    push, gitLabApiToken);
+            } else {
+                context.setTargetType("commit");
+                changes = gitLabReviewTargetService.getCommitChanges(
+                    gitLabProjectUrl, gitLabProjectId, task.getTargetId(), task.getTargetTitle(), gitLabApiToken);
+            }
         } else {
             throw new DomainException("TASK_TYPE_UNSUPPORTED", "Unsupported review task type: " + task.getTaskType());
         }
         context.setMergeRequestChanges(changes);
         reviewContextEnrichmentService.enrich(context, projectConfig, gitLabProjectId, gitLabProjectUrl, gitLabApiToken);
         return context;
+    }
+
+    private GitLabWebhookPayload readPushPayload(CodeReviewEventEntity event) {
+        try {
+            return objectMapper.readValue(event.getPayloadJson(), GitLabWebhookPayload.class);
+        } catch (Exception ex) {
+            throw new DomainException("PUSH_PAYLOAD_INVALID", "Failed to parse push webhook payload");
+        }
     }
 
     private ReviewNotificationMetadata buildNotificationMetadata(CodeReviewTaskEntity task) {

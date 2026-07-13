@@ -34,5 +34,10 @@ public class GitLabChangesPayload {
 
         @JsonProperty("renamed_file")
         private Boolean renamedFile;
+
+        private Boolean collapsed;
+
+        @JsonProperty("too_large")
+        private Boolean tooLarge;
     }
 }

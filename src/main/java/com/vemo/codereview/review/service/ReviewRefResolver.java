@@ -28,6 +28,12 @@ public class ReviewRefResolver {
             context.setHeadSha(context.getTargetId());
             return;
         }
+        if ("push".equals(context.getTargetType())) {
+            context.setSourceRef(context.getAfterSha());
+            context.setHeadSha(context.getAfterSha());
+            context.setTargetRef(context.getBeforeSha());
+            return;
+        }
         GitLabWebhookPayload payload = readPayload(context.getEventId());
         if (payload == null || payload.getObjectAttributes() == null) {
             context.setSourceRef(context.getTargetId());
