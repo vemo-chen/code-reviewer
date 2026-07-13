@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.vemo.codereview.dashboard.entity.ProjectProfileEntity;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
 import com.vemo.codereview.llm.service.LlmGatewayService;
+import com.vemo.codereview.llm.service.LlmConfigResolverService;
 import com.vemo.codereview.notify.service.WeComNotificationService;
 import com.vemo.codereview.platform.gitlab.model.GitLabChangesPayload;
 import com.vemo.codereview.platform.gitlab.service.GitLabCommentPublisher;
@@ -39,6 +40,10 @@ import com.vemo.codereview.review.service.ReviewScoreService;
 import com.vemo.codereview.review.service.ReviewStateService;
 import com.vemo.codereview.review.service.ReviewContextEnrichmentService;
 import com.vemo.codereview.review.service.ReviewTaskWorker;
+import com.vemo.codereview.review.service.ReviewSemanticUnitPlanner;
+import com.vemo.codereview.review.service.ReviewBatchPlanner;
+import com.vemo.codereview.review.service.ReviewBatchExecutor;
+import com.vemo.codereview.review.service.ReviewBatchAggregator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Arrays;
 import java.util.Collections;
@@ -86,6 +91,11 @@ class ProjectScopedReviewFlowTest {
     private ReviewRuleService reviewRuleService;
     @Mock
     private ReviewContextEnrichmentService reviewContextEnrichmentService;
+    @Mock private LlmConfigResolverService llmConfigResolverService;
+    @Mock private ReviewSemanticUnitPlanner reviewSemanticUnitPlanner;
+    @Mock private ReviewBatchPlanner reviewBatchPlanner;
+    @Mock private ReviewBatchExecutor reviewBatchExecutor;
+    @Mock private ReviewBatchAggregator reviewBatchAggregator;
 
     private ReviewTaskWorker reviewTaskWorker;
 
@@ -109,7 +119,12 @@ class ProjectScopedReviewFlowTest {
             projectTemplateResolverService,
             reviewRuleService,
             reviewContextEnrichmentService,
-            new ObjectMapper()
+            new ObjectMapper(),
+            llmConfigResolverService,
+            reviewSemanticUnitPlanner,
+            reviewBatchPlanner,
+            reviewBatchExecutor,
+            reviewBatchAggregator
         );
     }
 

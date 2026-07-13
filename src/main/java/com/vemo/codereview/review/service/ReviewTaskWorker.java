@@ -5,6 +5,8 @@ import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.dashboard.entity.ProjectProfileEntity;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
 import com.vemo.codereview.llm.service.LlmGatewayService;
+import com.vemo.codereview.llm.service.LlmConfigResolverService;
+import com.vemo.codereview.llm.model.LlmRuntimeConfig;
 import com.vemo.codereview.notify.model.ReviewNotificationMetadata;
 import com.vemo.codereview.notify.service.WeComNotificationService;
 import com.vemo.codereview.platform.gitlab.model.GitLabChangesPayload;
@@ -23,6 +25,11 @@ import com.vemo.codereview.review.model.ReviewExecutionContext;
 import com.vemo.codereview.review.model.ReviewFixStatus;
 import com.vemo.codereview.review.model.ReviewPromptPayload;
 import com.vemo.codereview.review.model.ReviewSummary;
+import com.vemo.codereview.review.model.ReviewSemanticUnit;
+import com.vemo.codereview.review.model.ReviewExecutionBatch;
+import com.vemo.codereview.review.model.ReviewBatchOutput;
+import com.vemo.codereview.review.model.AggregatedReviewOutput;
+import com.vemo.codereview.review.model.MrReviewCompletion;
 import com.vemo.codereview.review.model.ReviewTaskLifecycle;
 import com.vemo.codereview.webhook.model.GitLabWebhookPayload;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,6 +37,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Collections;
 import java.util.TimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +67,11 @@ public class ReviewTaskWorker {
     private final ReviewRuleService reviewRuleService;
     private final ReviewContextEnrichmentService reviewContextEnrichmentService;
     private final ObjectMapper objectMapper;
+    private final LlmConfigResolverService llmConfigResolverService;
+    private final ReviewSemanticUnitPlanner reviewSemanticUnitPlanner;
+    private final ReviewBatchPlanner reviewBatchPlanner;
+    private final ReviewBatchExecutor reviewBatchExecutor;
+    private final ReviewBatchAggregator reviewBatchAggregator;
 
     public ReviewTaskWorker(
         ReviewTaskStoreMapper codeReviewTaskMapper,
@@ -78,7 +91,12 @@ public class ReviewTaskWorker {
         ProjectTemplateResolverService projectTemplateResolverService,
         ReviewRuleService reviewRuleService,
         ReviewContextEnrichmentService reviewContextEnrichmentService,
-        ObjectMapper objectMapper) {
+        ObjectMapper objectMapper,
+        LlmConfigResolverService llmConfigResolverService,
+        ReviewSemanticUnitPlanner reviewSemanticUnitPlanner,
+        ReviewBatchPlanner reviewBatchPlanner,
+        ReviewBatchExecutor reviewBatchExecutor,
+        ReviewBatchAggregator reviewBatchAggregator) {
         this.codeReviewTaskMapper = codeReviewTaskMapper;
         this.reviewEventStoreMapper = reviewEventStoreMapper;
         this.gitLabReviewTargetService = gitLabReviewTargetService;
@@ -97,6 +115,11 @@ public class ReviewTaskWorker {
         this.reviewRuleService = reviewRuleService;
         this.reviewContextEnrichmentService = reviewContextEnrichmentService;
         this.objectMapper = objectMapper;
+        this.llmConfigResolverService = llmConfigResolverService;
+        this.reviewSemanticUnitPlanner = reviewSemanticUnitPlanner;
+        this.reviewBatchPlanner = reviewBatchPlanner;
+        this.reviewBatchExecutor = reviewBatchExecutor;
+        this.reviewBatchAggregator = reviewBatchAggregator;
     }
 
     public ReviewExecutionContext process(Long taskId) {
@@ -114,6 +137,10 @@ public class ReviewTaskWorker {
         reviewStateService.markTaskRunning(task);
         log.info("review task marked running. taskId={}, elapsedMs={}", task.getId(), elapsedMs(workerStartNs));
 
+        CodeReviewEventEntity startingEvent = task.getEventId() == null ? null
+            : reviewEventStoreMapper.selectById(task.getEventId());
+        String expectedMrHeadSha = startingEvent == null ? null : startingEvent.getMrHeadSha();
+        boolean completedAtomically = false;
         ReviewExecutionContext context;
         try {
             ProjectProfileEntity projectConfig = projectConfigService.findById(task.getProjectId());
@@ -126,29 +153,40 @@ public class ReviewTaskWorker {
             context = buildReviewContext(task, projectConfig, gitLabProjectId, gitLabProjectUrl, gitLabApiToken);
             log.info("review context built. taskId={}, targetType={}, gitlabFetchAndContextMs={}, elapsedMs={}",
                 task.getId(), context.getTargetType(), elapsedMs(contextStartNs), elapsedMs(workerStartNs));
-            long promptStartNs = System.nanoTime();
-            ReviewPromptPayload reviewPrompt = promptBuilderService.build(context);
-            log.info("review prompt built. taskId={}, files={}, promptBuildMs={}, elapsedMs={}",
-                task.getId(),
-                reviewPrompt.getFiles() == null ? 0 : reviewPrompt.getFiles().size(),
-                elapsedMs(promptStartNs),
-                elapsedMs(workerStartNs));
-            long llmStartNs = System.nanoTime();
-            log.info("review llm call starting. taskId={}, projectId={}, elapsedMs={}",
-                task.getId(), task.getProjectId(), elapsedMs(workerStartNs));
-            ChatCompletionResponse llmResponse = llmGatewayService.review(task.getProjectId(), reviewPrompt);
-            log.info("review llm call finished. taskId={}, llmMs={}, elapsedMs={}",
-                task.getId(), elapsedMs(llmStartNs), elapsedMs(workerStartNs));
-            ReviewSummary reviewSummary = reviewResultParser.parse(llmResponse);
-            reviewScoreService.applyScores(reviewSummary);
-            CodeReviewResultEntity persistedResult = reviewResultPersistenceService.persist(
-                task.getId(),
-                "openai-compatible",
-                llmResponse.getModel(),
-                reviewSummary,
-                llmResponse,
-                context
-            );
+            LlmRuntimeConfig runtimeConfig = llmConfigResolverService.resolve(task.getProjectId());
+            CodeReviewResultEntity persistedResult;
+            if (runtimeConfig == null) {
+                ReviewPromptPayload reviewPrompt = promptBuilderService.build(context);
+                ChatCompletionResponse llmResponse = llmGatewayService.review(task.getProjectId(), reviewPrompt);
+                ReviewSummary reviewSummary = reviewResultParser.parse(llmResponse);
+                reviewScoreService.applyScores(reviewSummary);
+                persistedResult = reviewResultPersistenceService.persist(task.getId(), "openai-compatible",
+                    llmResponse.getModel(), reviewSummary, llmResponse, context);
+            } else {
+                List<ReviewSemanticUnit> units = reviewSemanticUnitPlanner.plan(context,
+                    projectConfig == null || !Boolean.FALSE.equals(projectConfig.getReviewContextEnabled()));
+                List<ReviewExecutionBatch> batches = reviewBatchPlanner.plan(units, runtimeConfig.getMaxTokens());
+                AggregatedReviewOutput aggregate;
+                if (batches.isEmpty()) {
+                    aggregate = emptyAggregate(runtimeConfig);
+                } else {
+                    List<ReviewBatchOutput> outputs = reviewBatchExecutor.execute(
+                        task.getId(), task.getProjectId(), context, batches, runtimeConfig);
+                    aggregate = reviewBatchAggregator.aggregate(outputs);
+                }
+                if ("MR_REVIEW".equals(task.getTaskType())) {
+                    MrReviewCompletion completion = reviewResultPersistenceService.completeMrReview(
+                        task.getId(), expectedMrHeadSha, aggregate, context);
+                    if (!completion.isCompleted()) {
+                        log.info("review task result stale. taskId={}, expectedHead={}", task.getId(), expectedMrHeadSha);
+                        return context;
+                    }
+                    completedAtomically = true;
+                    persistedResult = completion.getResult();
+                } else {
+                    persistedResult = reviewResultPersistenceService.persistAggregated(task.getId(), aggregate, context);
+                }
+            }
             log.info("review result persisted. taskId={}, resultId={}, elapsedMs={}",
                 task.getId(), persistedResult.getId(), elapsedMs(workerStartNs));
             if (shouldPublishGitLab(projectConfig)) {
@@ -177,6 +215,10 @@ public class ReviewTaskWorker {
             throw ex;
         }
 
+        if (completedAtomically) {
+            log.info("review task finished. taskId={}, totalMs={}", task.getId(), elapsedMs(workerStartNs));
+            return context;
+        }
         task.setFixStatus(ReviewFixStatus.TO_BE_FIXED.name());
         task.setFixSubmittedBy(null);
         task.setFixSubmittedAt(null);
@@ -187,6 +229,23 @@ public class ReviewTaskWorker {
         markEventProcessedSafely(task.getEventId());
         log.info("review task finished. taskId={}, totalMs={}", task.getId(), elapsedMs(workerStartNs));
         return context;
+    }
+
+    private AggregatedReviewOutput emptyAggregate(LlmRuntimeConfig runtimeConfig) {
+        ReviewSummary summary = new ReviewSummary();
+        summary.setRiskLevel("LOW");
+        summary.setSummary("本次变更未包含符合审查范围的代码文件");
+        summary.setBriefSummary("本次变更未包含符合审查范围的代码文件");
+        summary.setComments(Collections.<com.vemo.codereview.review.model.ReviewCommentDraft>emptyList());
+        AggregatedReviewOutput output = new AggregatedReviewOutput();
+        output.setSummary(summary);
+        output.setProviderName("openai-compatible");
+        output.setModelName(runtimeConfig.getModelName());
+        output.setInputTokens(0);
+        output.setOutputTokens(0);
+        output.setLatencyMs(0L);
+        output.setRawResponse("[]");
+        return output;
     }
 
     private void markEventProcessedSafely(Long eventId) {
