@@ -28,6 +28,10 @@ public class ReviewContextBudgetService {
         return appProperties.getReviewContext().getMaxTotalChars();
     }
 
+    public int maxSnippetsPerFile() {
+        return appProperties.getReviewContext().getMaxSnippetsPerFile();
+    }
+
     public void applyFileBudget(ReviewFileContext fileContext) {
         if (fileContext == null || fileContext.getSnippets() == null) {
             return;

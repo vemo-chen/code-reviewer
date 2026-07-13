@@ -69,15 +69,9 @@ public class ReviewContextEnrichmentService {
         );
 
         List<ReviewFileContext> fileContexts = new ArrayList<ReviewFileContext>();
-        int processed = 0;
         for (GitLabChangesPayload.Change change : reviewableChanges) {
-            if (processed >= budgetService.maxFiles()) {
-                break;
-            }
             fileContexts.add(enrichFile(change, context.getSourceRef(), gitLabProjectId, gitLabProjectUrl, gitLabApiToken));
-            processed++;
         }
-        fileContexts = budgetService.applyTotalBudget(fileContexts);
         context.setFileContexts(fileContexts);
         context.setContextStats(stats(changes.size(), fileContexts));
     }
@@ -117,7 +111,6 @@ public class ReviewContextEnrichmentService {
             }
             fileContext.setSnippets(snippets);
             fileContext.setContentStatus(CollectionUtils.isEmpty(snippets) ? "SKIPPED" : "FETCHED");
-            budgetService.applyFileBudget(fileContext);
             return fileContext;
         } catch (RuntimeException ex) {
             fileContext.setContentStatus("ERROR");
