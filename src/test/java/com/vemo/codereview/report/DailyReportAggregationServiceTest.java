@@ -107,7 +107,7 @@ class DailyReportAggregationServiceTest {
         DailyReportSummary summary = summaries.get(0);
         assertEquals(Long.valueOf(1001L), summary.getProjectId());
         assertEquals("alice", summary.getDeveloperName());
-        assertEquals(1, summary.getCommitCount());
+        assertEquals(0, summary.getCommitCount());
         assertEquals(1, summary.getMrCount());
         assertEquals(1, summary.getReviewCount());
         assertEquals(1, summary.getHighRiskCount());
@@ -116,5 +116,42 @@ class DailyReportAggregationServiceTest {
         DailyReportRecordEntity record = dailyReportStoreMapper.selectById(1L);
         assertEquals(Integer.valueOf(1), record.getReviewCount());
         assertEquals(Integer.valueOf(1), record.getHighRiskCount());
+    }
+
+    @Test
+    void shouldCountPushRangeCommitsOncePerReview() {
+        Date now = new Date();
+        CodeReviewEventEntity event = new CodeReviewEventEntity();
+        event.setSourcePlatform("gitlab");
+        event.setEventType("push");
+        event.setProjectId(1001L);
+        event.setProjectName("code-reviewer");
+        event.setObjectId("head-c");
+        event.setObjectType("push");
+        event.setOperatorId("u001");
+        event.setOperatorName("alice");
+        event.setIdempotentKey("daily-push-range");
+        event.setPayloadJson("{\"total_commits_count\":3,\"commits\":[{\"id\":\"head-c\"}]}");
+        event.setStatus("PROCESSED");
+        event.setCreatedAt(now);
+        event.setUpdatedAt(now);
+        codeReviewEventMapper.insert(event);
+        CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setEventId(event.getId());
+        task.setTaskType("PUSH_REVIEW");
+        task.setSourcePlatform("gitlab");
+        task.setProjectId(1001L);
+        task.setTargetId("head-c");
+        task.setStatus("SUCCESS");
+        task.setRetryCount(0);
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        codeReviewTaskMapper.insert(task);
+
+        DailyReportSummary summary = dailyReportAggregationService.aggregate(now).get(0);
+
+        assertEquals(3, summary.getCommitCount());
+        assertEquals(1, summary.getMrCount());
+        assertEquals(2, summary.getReviewCount());
     }
 }

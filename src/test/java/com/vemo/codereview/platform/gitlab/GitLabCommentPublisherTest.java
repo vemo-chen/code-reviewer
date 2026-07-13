@@ -14,6 +14,7 @@ import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import com.vemo.codereview.review.mapper.ReviewCommentStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewResultStoreMapper;
+import com.vemo.codereview.review.model.ReviewExecutionContext;
 import java.util.Date;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -130,5 +131,45 @@ class GitLabCommentPublisherTest {
                 org.mockito.ArgumentMatchers.eq("abcdef123456"),
                 org.mockito.ArgumentMatchers.contains("Push review summary"),
                 org.mockito.ArgumentMatchers.isNull());
+    }
+
+    @Test
+    void shouldPublishOnePushRangeSummaryToAfterSha() {
+        Date now = new Date();
+        CodeReviewResultEntity result = new CodeReviewResultEntity();
+        result.setTaskId(103L);
+        result.setProviderName("openai-compatible");
+        result.setModelName("model");
+        result.setRiskLevel("HIGH");
+        result.setSummary("Range summary");
+        result.setCreatedAt(now);
+        codeReviewResultMapper.insert(result);
+        CodeReviewCommentEntity comment = new CodeReviewCommentEntity();
+        comment.setResultId(result.getId());
+        comment.setFilePath("src/A.java");
+        comment.setLineNo(42);
+        comment.setSeverity("HIGH");
+        comment.setCategory("Correctness");
+        comment.setMessage("Issue");
+        comment.setCommentHash("range-hash");
+        comment.setIsPosted(Boolean.FALSE);
+        comment.setCreatedAt(now);
+        codeReviewCommentMapper.insert(comment);
+        ReviewExecutionContext context = new ReviewExecutionContext();
+        context.setPushBranch("test-cr");
+        context.setBeforeSha("base-a");
+        context.setAfterSha("head-c");
+        context.setCommitCount(3);
+
+        boolean published = gitLabCommentPublisher.publishPushRange(
+            null, 1001L, context, result, null);
+
+        assertTrue(published);
+        verify(gitLabReviewTargetService, times(1)).publishCommitNote(
+            org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(1001L),
+            org.mockito.ArgumentMatchers.eq("head-c"),
+            org.mockito.ArgumentMatchers.argThat(body -> body.contains("test-cr")
+                && body.contains("base-a..head-c") && body.contains("src/A.java") && body.contains("42")),
+            org.mockito.ArgumentMatchers.isNull());
     }
 }

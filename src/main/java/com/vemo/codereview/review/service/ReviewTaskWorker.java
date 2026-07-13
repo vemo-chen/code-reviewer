@@ -191,7 +191,7 @@ public class ReviewTaskWorker {
                 task.getId(), persistedResult.getId(), elapsedMs(workerStartNs));
             if (shouldPublishGitLab(projectConfig)) {
                 long publishStartNs = System.nanoTime();
-                publishReviewResult(task, persistedResult, gitLabProjectId, gitLabProjectUrl, gitLabApiToken);
+                publishReviewResult(task, persistedResult, context, gitLabProjectId, gitLabProjectUrl, gitLabApiToken);
                 log.info("review gitlab note published. taskId={}, publishMs={}, elapsedMs={}",
                     task.getId(), elapsedMs(publishStartNs), elapsedMs(workerStartNs));
             }
@@ -202,7 +202,7 @@ public class ReviewTaskWorker {
             if (shouldNotifyWeCom(projectConfig)) {
                 weComNotificationService.notifyReviewResult(
                     task.getProjectId(),
-                    buildNotificationMetadata(task),
+                    buildNotificationMetadata(task, context),
                     persistedResult,
                     comments,
                     projectConfig == null ? null : projectConfig.getWecomWebhookUrl()
@@ -329,11 +329,17 @@ public class ReviewTaskWorker {
         }
     }
 
-    private ReviewNotificationMetadata buildNotificationMetadata(CodeReviewTaskEntity task) {
+    private ReviewNotificationMetadata buildNotificationMetadata(CodeReviewTaskEntity task, ReviewExecutionContext context) {
         ReviewNotificationMetadata metadata = new ReviewNotificationMetadata();
         metadata.setReviewTargetType(task.getTaskType());
         metadata.setTargetId(task.getTargetId());
         metadata.setSubmitMessage(task.getTargetTitle());
+        if (context != null && "push".equals(context.getTargetType())) {
+            metadata.setPushBranch(context.getPushBranch());
+            metadata.setBeforeSha(context.getBeforeSha());
+            metadata.setAfterSha(context.getAfterSha());
+            metadata.setCommitCount(context.getCommitCount());
+        }
 
         if (task.getEventId() == null) {
             return metadata;
@@ -437,6 +443,7 @@ public class ReviewTaskWorker {
     private void publishReviewResult(
         CodeReviewTaskEntity task,
         CodeReviewResultEntity persistedResult,
+        ReviewExecutionContext context,
         Long gitLabProjectId,
         String gitLabProjectUrl,
         String gitLabApiToken) {
@@ -451,6 +458,11 @@ public class ReviewTaskWorker {
             return;
         }
         if ("PUSH_REVIEW".equals(task.getTaskType())) {
+            if (context != null && "push".equals(context.getTargetType())) {
+                gitLabCommentPublisher.publishPushRange(
+                    gitLabProjectUrl, gitLabProjectId, context, persistedResult, gitLabApiToken);
+                return;
+            }
             gitLabCommentPublisher.publishCommit(
                 gitLabProjectUrl,
                 gitLabProjectId,

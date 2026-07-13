@@ -86,6 +86,14 @@ public class WeComNotificationService {
         builder.append("> 提交时间：<font color=\"comment\">")
             .append(safe(metadata == null ? null : metadata.getSubmitTime()))
             .append("</font>\n");
+        if (metadata != null && StringUtils.hasText(metadata.getAfterSha())) {
+            builder.append("> Push 范围：<font color=\"comment\">")
+                .append(safe(metadata.getPushBranch())).append(" ")
+                .append(safe(metadata.getBeforeSha())).append("..")
+                .append(safe(metadata.getAfterSha())).append(" (")
+                .append(metadata.getCommitCount() == null ? 0 : metadata.getCommitCount())
+                .append(" commits)</font>\n");
+        }
         builder.append("> 风险等级：").append(formatSeverity(result.getRiskLevel())).append("\n");
         builder.append("> 最终得分：<font color=\"comment\">")
             .append(safeScore(resolveFinalScore(result))).append("</font>\n");

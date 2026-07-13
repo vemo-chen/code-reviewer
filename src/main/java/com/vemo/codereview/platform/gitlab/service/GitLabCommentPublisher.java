@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import com.vemo.codereview.review.mapper.ReviewCommentStoreMapper;
+import com.vemo.codereview.review.model.ReviewExecutionContext;
 import java.util.Date;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -76,6 +77,28 @@ public class GitLabCommentPublisher {
         );
         markCommentsAsPosted(comments);
         return true;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public boolean publishPushRange(String gitlabProjectUrl, Long projectId, ReviewExecutionContext context,
+                                    CodeReviewResultEntity result, String token) {
+        List<CodeReviewCommentEntity> comments = loadComments(result);
+        if (!hasUnpostedComments(comments)) return false;
+        gitLabReviewTargetService.publishCommitNote(gitlabProjectUrl, projectId, context.getAfterSha(),
+            buildPushRangeNoteBody(context, result, comments), token);
+        markCommentsAsPosted(comments);
+        return true;
+    }
+
+    private String buildPushRangeNoteBody(ReviewExecutionContext context, CodeReviewResultEntity result,
+                                          List<CodeReviewCommentEntity> comments) {
+        StringBuilder body = new StringBuilder();
+        body.append("## AI Code Review - Push Range\n");
+        body.append("- Branch: ").append(context.getPushBranch()).append('\n');
+        body.append("- Range: ").append(context.getBeforeSha()).append("..").append(context.getAfterSha()).append('\n');
+        body.append("- Commit Count: ").append(context.getCommitCount()).append('\n');
+        body.append(buildNoteBody(result, comments));
+        return body.toString();
     }
 
     private List<CodeReviewCommentEntity> loadComments(CodeReviewResultEntity result) {

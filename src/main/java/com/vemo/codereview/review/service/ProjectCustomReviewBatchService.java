@@ -313,8 +313,14 @@ public class ProjectCustomReviewBatchService {
         wrapper.eq("project_id", projectId)
             .eq("task_type", TASK_TYPE_PUSH_REVIEW)
             .eq("target_id", commitSha)
-            .last("limit 1");
-        return codeReviewTaskMapper.selectOne(wrapper);
+            .orderByDesc("id");
+        List<CodeReviewTaskEntity> tasks = codeReviewTaskMapper.selectList(wrapper);
+        if (tasks == null) return null;
+        for (CodeReviewTaskEntity task : tasks) {
+            CodeReviewEventEntity event = task.getEventId() == null ? null : codeReviewEventMapper.selectById(task.getEventId());
+            if (event != null && "commit".equalsIgnoreCase(event.getObjectType())) return task;
+        }
+        return null;
     }
 
     private CodeReviewTaskEntity createTaskForCommit(
