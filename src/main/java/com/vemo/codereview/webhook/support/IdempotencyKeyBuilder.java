@@ -1,6 +1,9 @@
 package com.vemo.codereview.webhook.support;
 
 import com.vemo.codereview.webhook.model.GitLabWebhookPayload;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -19,20 +22,32 @@ public class IdempotencyKeyBuilder {
     }
 
     public String buildForPush(GitLabWebhookPayload payload) {
-        String after = payload.getAfter() == null || payload.getAfter().trim().isEmpty()
-            ? "no-after"
-            : payload.getAfter();
-        return buildForPushCommit(payload, after);
+        String canonical = payload.getProject().getId() + "\n"
+            + normalizeBranch(payload.getRef()) + "\n"
+            + normalizeSha(payload.getBefore()) + "\n"
+            + normalizeSha(payload.getAfter());
+        return "gitlab-push-" + sha256Hex(canonical);
     }
 
-    public String buildForPushCommit(GitLabWebhookPayload payload, String commitSha) {
-        String resolvedCommitSha = commitSha == null || commitSha.trim().isEmpty()
-            ? "no-commit"
-            : commitSha.trim();
-        return new StringBuilder("gitlab")
-            .append('-').append(payload.getProject().getId())
-            .append("-push-")
-            .append(resolvedCommitSha)
-            .toString();
+    private String normalizeBranch(String ref) {
+        String normalized = ref == null ? "" : ref.trim();
+        return normalized.startsWith("refs/heads/") ? normalized.substring("refs/heads/".length()) : normalized;
+    }
+
+    private String normalizeSha(String sha) {
+        return sha == null ? "" : sha.trim().toLowerCase();
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (byte item : digest) {
+                hex.append(String.format("%02x", item & 0xff));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 is not available", ex);
+        }
     }
 }

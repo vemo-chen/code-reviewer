@@ -16,7 +16,6 @@ import com.vemo.codereview.review.service.ReviewTaskDispatcher;
 import com.vemo.codereview.webhook.model.GitLabWebhookPayload;
 import com.vemo.codereview.webhook.model.StandardReviewEvent;
 import com.vemo.codereview.webhook.support.GitLabWebhookEventNormalizer;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.LinkedHashSet;
@@ -76,41 +75,20 @@ public class GitLabWebhookHandlerService {
             return;
         }
         if ("push".equals(payload.getObjectKind())) {
-            List<StandardReviewEvent> events = gitLabWebhookEventNormalizer.normalizePushCommits(payload);
-            log.info("webhook normalized. eventType={}, commitEvents={}, elapsedMs={}",
-                payload.getObjectKind(), events.size(), elapsedMs(startNs));
-            List<StandardReviewEvent> reviewableEvents = filterReviewablePushEvents(events, startNs);
-            if (reviewableEvents.isEmpty()) {
-                StandardReviewEvent ignoredEvent = events.isEmpty() ? gitLabWebhookEventNormalizer.normalizePush(payload)
-                    : events.get(events.size() - 1);
-                resolveManagedProject(ignoredEvent, startNs);
-                createIgnoredEvent(ignoredEvent);
-                log.info("webhook ignored because push contains only merge commits. idempotentKey={}, commitEvents={}, elapsedMs={}",
-                    ignoredEvent.getIdempotentKey(), events.size(), elapsedMs(startNs));
+            StandardReviewEvent event = gitLabWebhookEventNormalizer.normalizePush(payload);
+            log.info("webhook normalized. eventType={}, idempotentKey={}, elapsedMs={}",
+                payload.getObjectKind(), event.getIdempotentKey(), elapsedMs(startNs));
+            if (isDeletedBranch(payload) || isEmptyNewBranch(payload) || containsOnlyMergeCommits(payload)) {
+                resolveManagedProject(event, startNs);
+                createIgnoredEvent(event);
+                log.info("webhook push ignored. idempotentKey={}, elapsedMs={}",
+                    event.getIdempotentKey(), elapsedMs(startNs));
                 return;
             }
-            for (StandardReviewEvent event : reviewableEvents) {
-                handleEvent(event, "PUSH_REVIEW", startNs);
-            }
+            handleEvent(event, "PUSH_REVIEW", startNs);
             return;
         }
         throw new DomainException("UNSUPPORTED_EVENT", "Only merge_request and push events are supported");
-    }
-
-    private List<StandardReviewEvent> filterReviewablePushEvents(List<StandardReviewEvent> events, long webhookStartNs) {
-        List<StandardReviewEvent> reviewableEvents = new ArrayList<StandardReviewEvent>();
-        if (events == null) {
-            return reviewableEvents;
-        }
-        for (StandardReviewEvent event : events) {
-            if (shouldIgnorePushMergeCommit(event)) {
-                log.info("push commit skipped as merge commit. commitSha={}, title={}, elapsedMs={}",
-                    event.getTargetId(), event.getTargetTitle(), elapsedMs(webhookStartNs));
-                continue;
-            }
-            reviewableEvents.add(event);
-        }
-        return reviewableEvents;
     }
 
     private void handleEvent(StandardReviewEvent event, String taskType, long webhookStartNs) {
@@ -260,15 +238,32 @@ public class GitLabWebhookHandlerService {
         return null;
     }
 
-    private boolean shouldIgnorePushMergeCommit(StandardReviewEvent event) {
-        if (event == null || !"commit".equalsIgnoreCase(event.getObjectType())) {
+    private boolean isDeletedBranch(GitLabWebhookPayload payload) {
+        return isZeroSha(payload.getAfter());
+    }
+
+    private boolean isEmptyNewBranch(GitLabWebhookPayload payload) {
+        return isZeroSha(payload.getBefore()) && (payload.getCommits() == null || payload.getCommits().isEmpty());
+    }
+
+    private boolean containsOnlyMergeCommits(GitLabWebhookPayload payload) {
+        List<GitLabWebhookPayload.Commit> commits = payload.getCommits();
+        if (commits == null || commits.isEmpty()) {
             return false;
         }
-        String title = event.getTargetTitle();
-        if (title == null) {
-            return false;
+        for (GitLabWebhookPayload.Commit commit : commits) {
+            String title = commit == null ? null : commit.getTitle();
+            String message = commit == null ? null : commit.getMessage();
+            String text = StringUtils.hasText(title) ? title : message;
+            if (!StringUtils.hasText(text) || !text.trim().startsWith("Merge ")) {
+                return false;
+            }
         }
-        return title.trim().startsWith("Merge ");
+        return true;
+    }
+
+    private boolean isZeroSha(String sha) {
+        return StringUtils.hasText(sha) && sha.trim().matches("0+");
     }
 
     private boolean isBranchReviewAllowed(ProjectProfileEntity project, String submitBranch) {

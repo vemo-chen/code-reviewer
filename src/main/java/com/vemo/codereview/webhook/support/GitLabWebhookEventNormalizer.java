@@ -4,7 +4,6 @@ import com.vemo.codereview.webhook.model.GitLabWebhookPayload;
 import com.vemo.codereview.webhook.model.StandardReviewEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.time.Instant;
@@ -43,49 +42,20 @@ public class GitLabWebhookEventNormalizer {
     }
 
     public StandardReviewEvent normalizePush(GitLabWebhookPayload payload) {
-        String commitSha = payload.getAfter();
-        String title = resolvePushTitle(payload);
-        return normalizePushCommit(payload, commitSha, title);
-    }
-
-    public List<StandardReviewEvent> normalizePushCommits(GitLabWebhookPayload payload) {
-        List<StandardReviewEvent> events = new ArrayList<StandardReviewEvent>();
-        List<GitLabWebhookPayload.Commit> commits = payload.getCommits();
-        if (commits == null || commits.isEmpty()) {
-            events.add(normalizePush(payload));
-            return events;
-        }
-        for (GitLabWebhookPayload.Commit commit : commits) {
-            if (commit == null) {
-                continue;
-            }
-            String commitSha = StringUtils.hasText(commit.getId()) ? commit.getId().trim() : payload.getAfter();
-            if (!StringUtils.hasText(commitSha)) {
-                continue;
-            }
-            events.add(normalizePushCommit(payload, commitSha, resolveCommitTitle(commit)));
-        }
-        if (events.isEmpty()) {
-            events.add(normalizePush(payload));
-        }
-        return events;
-    }
-
-    private StandardReviewEvent normalizePushCommit(GitLabWebhookPayload payload, String commitSha, String title) {
         StandardReviewEvent event = new StandardReviewEvent();
         event.setSourcePlatform("gitlab");
         event.setEventType(payload.getObjectKind());
         event.setProjectId(payload.getProject().getId());
         event.setProjectName(payload.getProject().getName());
-        event.setObjectId(commitSha);
-        event.setObjectType("commit");
+        event.setObjectId(isZeroSha(payload.getAfter()) ? payload.getBefore() : payload.getAfter());
+        event.setObjectType("push");
         event.setOperatorId(payload.getUserUsername());
         event.setOperatorName(payload.getUserName());
         event.setSubmitBranch(resolvePushBranch(payload.getRef()));
-        event.setSubmitTime(resolveCommitSubmitTime(payload, commitSha));
-        event.setTargetId(commitSha);
-        event.setTargetTitle(title);
-        event.setIdempotentKey(idempotencyKeyBuilder.buildForPushCommit(payload, commitSha));
+        event.setSubmitTime(resolveCommitSubmitTime(payload, payload.getAfter()));
+        event.setTargetId(payload.getAfter());
+        event.setTargetTitle(resolvePushTitle(payload));
+        event.setIdempotentKey(idempotencyKeyBuilder.buildForPush(payload));
         event.setPayloadJson(writePayload(payload));
         return event;
     }
@@ -106,21 +76,6 @@ public class GitLabWebhookEventNormalizer {
             }
         }
         return payload.getRef() == null ? "Push Review" : payload.getRef();
-    }
-
-    private String resolveCommitTitle(GitLabWebhookPayload.Commit commit) {
-        if (commit == null) {
-            return null;
-        }
-        if (StringUtils.hasText(commit.getTitle())) {
-            return commit.getTitle().trim();
-        }
-        if (StringUtils.hasText(commit.getMessage())) {
-            String message = commit.getMessage().trim();
-            int newLine = message.indexOf('\n');
-            return newLine > 0 ? message.substring(0, newLine).trim() : message;
-        }
-        return commit.getId();
     }
 
     private String resolvePushBranch(String ref) {
@@ -192,6 +147,10 @@ public class GitLabWebhookEventNormalizer {
         } catch (Exception ignored) {
         }
         return null;
+    }
+
+    private boolean isZeroSha(String sha) {
+        return StringUtils.hasText(sha) && sha.trim().matches("0+");
     }
 
     private String writePayload(GitLabWebhookPayload payload) {
