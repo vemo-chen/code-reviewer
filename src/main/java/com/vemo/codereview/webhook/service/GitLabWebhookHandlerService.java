@@ -37,6 +37,7 @@ public class GitLabWebhookHandlerService {
     private final ReviewTaskDispatcher reviewTaskDispatcher;
     private final ReviewStateService reviewStateService;
     private final ProjectConfigService projectConfigService;
+    private final MergeRequestEventService mergeRequestEventService;
 
     public GitLabWebhookHandlerService(
         GitLabWebhookEventNormalizer gitLabWebhookEventNormalizer,
@@ -45,7 +46,8 @@ public class GitLabWebhookHandlerService {
         ReviewTaskStoreMapper codeReviewTaskMapper,
         ReviewTaskDispatcher reviewTaskDispatcher,
         ReviewStateService reviewStateService,
-        ProjectConfigService projectConfigService) {
+        ProjectConfigService projectConfigService,
+        MergeRequestEventService mergeRequestEventService) {
         this.gitLabWebhookEventNormalizer = gitLabWebhookEventNormalizer;
         this.idempotencyService = idempotencyService;
         this.codeReviewEventMapper = codeReviewEventMapper;
@@ -53,6 +55,7 @@ public class GitLabWebhookHandlerService {
         this.reviewTaskDispatcher = reviewTaskDispatcher;
         this.reviewStateService = reviewStateService;
         this.projectConfigService = projectConfigService;
+        this.mergeRequestEventService = mergeRequestEventService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -71,7 +74,14 @@ public class GitLabWebhookHandlerService {
             StandardReviewEvent event = gitLabWebhookEventNormalizer.normalizeMergeRequest(payload);
             log.info("webhook normalized. eventType={}, idempotentKey={}, elapsedMs={}",
                 payload.getObjectKind(), event.getIdempotentKey(), elapsedMs(startNs));
-            handleEvent(event, "MR_REVIEW", startNs);
+            ProjectProfileEntity project = resolveManagedProject(event, startNs);
+            if (project == null || !Boolean.TRUE.equals(project.getActive())
+                || !Boolean.TRUE.equals(project.getAiReviewEnabled())
+                || !isBranchReviewAllowed(project, event.getSubmitBranch())) {
+                createIgnoredEvent(event);
+                return;
+            }
+            mergeRequestEventService.handle(event, project);
             return;
         }
         if ("push".equals(payload.getObjectKind())) {
@@ -198,6 +208,9 @@ public class GitLabWebhookHandlerService {
         eventEntity.setOperatorName(event.getOperatorName());
         eventEntity.setSubmitBranch(event.getSubmitBranch());
         eventEntity.setSubmitTime(event.getSubmitTime());
+        eventEntity.setMrState(event.getMrState());
+        eventEntity.setMrHeadSha(event.getMrHeadSha());
+        eventEntity.setMergedSha(event.getMergedSha());
         eventEntity.setIdempotentKey(event.getIdempotentKey());
         eventEntity.setPayloadJson(event.getPayloadJson());
         eventEntity.setStatus(ReviewEventLifecycle.RECEIVED.name());

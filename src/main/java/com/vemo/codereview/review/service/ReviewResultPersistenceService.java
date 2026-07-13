@@ -53,7 +53,7 @@ public class ReviewResultPersistenceService {
         ChatCompletionResponse response,
         ReviewExecutionContext context) {
         Date now = new Date();
-        deleteExistingResult(taskId);
+        deleteByTaskId(taskId);
 
         CodeReviewResultEntity resultEntity = new CodeReviewResultEntity();
         resultEntity.setTaskId(taskId);
@@ -94,7 +94,8 @@ public class ReviewResultPersistenceService {
         return resultEntity;
     }
 
-    private void deleteExistingResult(Long taskId) {
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteByTaskId(Long taskId) {
         QueryWrapper<CodeReviewResultEntity> resultWrapper = new QueryWrapper<CodeReviewResultEntity>();
         resultWrapper.eq("task_id", taskId);
         List<CodeReviewResultEntity> existingResults = codeReviewResultMapper.selectList(resultWrapper);

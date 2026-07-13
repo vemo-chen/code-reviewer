@@ -10,14 +10,10 @@ import org.springframework.stereotype.Component;
 public class IdempotencyKeyBuilder {
 
     public String buildForMergeRequest(GitLabWebhookPayload payload) {
-        String commitId = payload.getObjectAttributes().getLastCommit() == null
-            ? "no-commit"
-            : payload.getObjectAttributes().getLastCommit().getId();
         return new StringBuilder("gitlab")
             .append('-').append(payload.getProject().getId())
             .append('-').append(payload.getObjectKind())
             .append('-').append(payload.getObjectAttributes().getId())
-            .append('-').append(commitId)
             .toString();
     }
 

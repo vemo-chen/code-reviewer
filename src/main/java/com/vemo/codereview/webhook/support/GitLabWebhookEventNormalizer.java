@@ -30,10 +30,16 @@ public class GitLabWebhookEventNormalizer {
         event.setProjectName(payload.getProject().getName());
         event.setObjectId(String.valueOf(payload.getObjectAttributes().getId()));
         event.setObjectType("merge_request");
-        event.setOperatorId(payload.getUser() == null ? null : String.valueOf(payload.getUser().getId()));
-        event.setOperatorName(payload.getUser() == null ? null : payload.getUser().getName());
-        event.setSubmitBranch(payload.getObjectAttributes() == null ? null : payload.getObjectAttributes().getSourceBranch());
+        if ("open".equalsIgnoreCase(payload.getObjectAttributes().getAction()) && payload.getUser() != null) {
+            event.setOperatorId(payload.getUser().getUsername());
+            event.setOperatorName(payload.getUser().getName());
+        }
+        event.setSubmitBranch(payload.getObjectAttributes() == null ? null : payload.getObjectAttributes().getTargetBranch());
         event.setSubmitTime(resolveMergeRequestSubmitTime(payload));
+        event.setMrState(resolveMrState(payload));
+        event.setMrHeadSha(payload.getObjectAttributes().getLastCommit() == null
+            ? null : payload.getObjectAttributes().getLastCommit().getId());
+        event.setMergedSha(resolveMergedSha(payload));
         event.setTargetId(String.valueOf(payload.getObjectAttributes().getIid()));
         event.setTargetTitle(payload.getObjectAttributes().getTitle());
         event.setIdempotentKey(idempotencyKeyBuilder.buildForMergeRequest(payload));
@@ -104,6 +110,30 @@ public class GitLabWebhookEventNormalizer {
         }
         return payload.getObjectAttributes().getLastCommit() == null
             ? null : parseTimestamp(payload.getObjectAttributes().getLastCommit().getTimestamp());
+    }
+
+    private String resolveMrState(GitLabWebhookPayload payload) {
+        String state = payload.getObjectAttributes().getState();
+        if ("merge".equalsIgnoreCase(payload.getObjectAttributes().getAction())) {
+            return "MERGED";
+        }
+        if (!StringUtils.hasText(state)) {
+            return null;
+        }
+        String normalized = state.trim().toUpperCase();
+        return "OPENED".equals(normalized) || "REOPENED".equals(normalized) ? "OPEN" : normalized;
+    }
+
+    private String resolveMergedSha(GitLabWebhookPayload payload) {
+        GitLabWebhookPayload.MergeRequestAttributes attributes = payload.getObjectAttributes();
+        if (StringUtils.hasText(attributes.getSquashCommitSha())) {
+            return attributes.getSquashCommitSha().trim();
+        }
+        if (StringUtils.hasText(attributes.getMergeCommitSha())) {
+            return attributes.getMergeCommitSha().trim();
+        }
+        return "MERGED".equals(resolveMrState(payload)) && attributes.getLastCommit() != null
+            ? attributes.getLastCommit().getId() : null;
     }
 
     private Date resolveCommitSubmitTime(GitLabWebhookPayload payload, String commitSha) {
