@@ -15,6 +15,7 @@ import com.vemo.codereview.review.service.ReviewStateService;
 import com.vemo.codereview.review.service.ReviewTaskDispatcher;
 import com.vemo.codereview.webhook.model.GitLabWebhookPayload;
 import com.vemo.codereview.webhook.model.StandardReviewEvent;
+import com.vemo.codereview.webhook.model.MergePushDecision;
 import com.vemo.codereview.webhook.support.GitLabWebhookEventNormalizer;
 import java.util.Date;
 import java.util.List;
@@ -38,6 +39,7 @@ public class GitLabWebhookHandlerService {
     private final ReviewStateService reviewStateService;
     private final ProjectConfigService projectConfigService;
     private final MergeRequestEventService mergeRequestEventService;
+    private final MergePushCorrelationService mergePushCorrelationService;
 
     public GitLabWebhookHandlerService(
         GitLabWebhookEventNormalizer gitLabWebhookEventNormalizer,
@@ -47,7 +49,8 @@ public class GitLabWebhookHandlerService {
         ReviewTaskDispatcher reviewTaskDispatcher,
         ReviewStateService reviewStateService,
         ProjectConfigService projectConfigService,
-        MergeRequestEventService mergeRequestEventService) {
+        MergeRequestEventService mergeRequestEventService,
+        MergePushCorrelationService mergePushCorrelationService) {
         this.gitLabWebhookEventNormalizer = gitLabWebhookEventNormalizer;
         this.idempotencyService = idempotencyService;
         this.codeReviewEventMapper = codeReviewEventMapper;
@@ -56,6 +59,7 @@ public class GitLabWebhookHandlerService {
         this.reviewStateService = reviewStateService;
         this.projectConfigService = projectConfigService;
         this.mergeRequestEventService = mergeRequestEventService;
+        this.mergePushCorrelationService = mergePushCorrelationService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -88,26 +92,42 @@ public class GitLabWebhookHandlerService {
             StandardReviewEvent event = gitLabWebhookEventNormalizer.normalizePush(payload);
             log.info("webhook normalized. eventType={}, idempotentKey={}, elapsedMs={}",
                 payload.getObjectKind(), event.getIdempotentKey(), elapsedMs(startNs));
-            if (isDeletedBranch(payload) || isEmptyNewBranch(payload) || containsOnlyMergeCommits(payload)) {
-                resolveManagedProject(event, startNs);
+            ProjectProfileEntity project = resolveManagedProject(event, startNs);
+            if (isDeletedBranch(payload) || isEmptyNewBranch(payload)) {
                 createIgnoredEvent(event);
                 log.info("webhook push ignored. idempotentKey={}, elapsedMs={}",
                     event.getIdempotentKey(), elapsedMs(startNs));
                 return;
             }
-            handleEvent(event, "PUSH_REVIEW", startNs);
+            if (project != null) {
+                MergePushDecision decision = mergePushCorrelationService.decide(payload, project);
+                if (decision == MergePushDecision.SKIP_ALREADY_REVIEWED
+                    || decision == MergePushDecision.IGNORE_NO_CODE) {
+                    createIgnoredEvent(event);
+                    log.info("webhook push ignored by merge correlation. decision={}, idempotentKey={}, elapsedMs={}",
+                        decision, event.getIdempotentKey(), elapsedMs(startNs));
+                    return;
+                }
+            }
+            handleEvent(event, "PUSH_REVIEW", startNs, project);
             return;
         }
         throw new DomainException("UNSUPPORTED_EVENT", "Only merge_request and push events are supported");
     }
 
     private void handleEvent(StandardReviewEvent event, String taskType, long webhookStartNs) {
+        handleEvent(event, taskType, webhookStartNs, null);
+    }
+
+    private void handleEvent(StandardReviewEvent event, String taskType, long webhookStartNs,
+                             ProjectProfileEntity resolvedProject) {
         if (isDuplicateEvent(event.getIdempotentKey())) {
             log.info("webhook ignored as duplicate. idempotentKey={}, elapsedMs={}",
                 event.getIdempotentKey(), elapsedMs(webhookStartNs));
             return;
         }
-        ProjectProfileEntity project = resolveManagedProject(event, webhookStartNs);
+        ProjectProfileEntity project = resolvedProject == null ? resolveManagedProject(event, webhookStartNs)
+            : resolvedProject;
         if (project == null) {
             createIgnoredEvent(event);
             log.info("webhook ignored because project not found. idempotentKey={}, elapsedMs={}",
@@ -257,22 +277,6 @@ public class GitLabWebhookHandlerService {
 
     private boolean isEmptyNewBranch(GitLabWebhookPayload payload) {
         return isZeroSha(payload.getBefore()) && (payload.getCommits() == null || payload.getCommits().isEmpty());
-    }
-
-    private boolean containsOnlyMergeCommits(GitLabWebhookPayload payload) {
-        List<GitLabWebhookPayload.Commit> commits = payload.getCommits();
-        if (commits == null || commits.isEmpty()) {
-            return false;
-        }
-        for (GitLabWebhookPayload.Commit commit : commits) {
-            String title = commit == null ? null : commit.getTitle();
-            String message = commit == null ? null : commit.getMessage();
-            String text = StringUtils.hasText(title) ? title : message;
-            if (!StringUtils.hasText(text) || !text.trim().startsWith("Merge ")) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private boolean isZeroSha(String sha) {
