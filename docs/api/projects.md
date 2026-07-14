@@ -59,6 +59,8 @@
 4. 本次代码变更上下文
 5. 输出 JSON 约束
 
+深度审查开启时，系统按方法、函数等最小语义单元扩展代码上下文。单次模型输出预算由项目绑定模型的 `maxTokens` 决定；超出预算时按原顺序拆成多个内部 batch，任何 unit 都不会因达到预算而被丢弃。所有 batch 最终聚合为一条 task 和一份用户可见结果；模型以 `finish_reason=length` 截断时在 task 内二分 batch，单 unit 使用一次 COMPACT 兜底。
+
 ## 5. 创建项目示例
 
 `POST /api/projects`

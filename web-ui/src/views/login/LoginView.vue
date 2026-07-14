@@ -1,5 +1,5 @@
 <template>
-  <div class="login-shell">
+  <div class="login-shell" :style="{ '--login-background': `url(${loginBackground})` }">
     <section class="login-panel">
       <p class="eyebrow">Internal Access</p>
       <h1>Code Reviewer</h1>
@@ -25,6 +25,7 @@ import { reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useAuthStore } from "../../stores/auth";
+import loginBackground from "../../assets/images/login-background.png";
 
 const route = useRoute();
 const router = useRouter();
@@ -67,20 +68,24 @@ const handleLogin = async () => {
 <style scoped>
 .login-shell {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 32px;
-  background:
-    radial-gradient(circle at 78% 14%, rgba(255, 140, 0, 0.14), transparent 18%),
-    linear-gradient(180deg, #fafaf5 0%, #f4f4ef 100%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 32px 8vw 32px 32px;
+  background-image: var(--login-background);
+  background-position: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
 }
 
 .login-panel {
   width: min(100%, 460px);
   padding: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 12px;
-  background: var(--cr-surface-paper);
-  box-shadow: var(--cr-shadow-soft);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 24px 56px rgba(44, 54, 68, 0.2);
+  backdrop-filter: blur(12px);
 }
 
 .eyebrow {

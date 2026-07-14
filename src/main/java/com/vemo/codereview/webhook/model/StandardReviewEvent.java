@@ -18,6 +18,9 @@ public class StandardReviewEvent {
     private String operatorName;
     private String submitBranch;
     private Date submitTime;
+    private String mrState;
+    private String mrHeadSha;
+    private String mergedSha;
     private String targetId;
     private String targetTitle;
     private String idempotentKey;

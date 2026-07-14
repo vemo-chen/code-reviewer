@@ -10,6 +10,8 @@ import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewResultStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vemo.codereview.webhook.model.GitLabWebhookPayload;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -31,16 +33,19 @@ public class DailyReportAggregationService {
     private final ReviewEventStoreMapper codeReviewEventMapper;
     private final ReviewResultStoreMapper codeReviewResultMapper;
     private final DailyReportStoreMapper DailyReportStoreMapper;
+    private final ObjectMapper objectMapper;
 
     public DailyReportAggregationService(
         ReviewTaskStoreMapper codeReviewTaskMapper,
         ReviewEventStoreMapper codeReviewEventMapper,
         ReviewResultStoreMapper codeReviewResultMapper,
-        DailyReportStoreMapper DailyReportStoreMapper) {
+        DailyReportStoreMapper DailyReportStoreMapper,
+        ObjectMapper objectMapper) {
         this.codeReviewTaskMapper = codeReviewTaskMapper;
         this.codeReviewEventMapper = codeReviewEventMapper;
         this.codeReviewResultMapper = codeReviewResultMapper;
         this.DailyReportStoreMapper = DailyReportStoreMapper;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -77,9 +82,10 @@ public class DailyReportAggregationService {
                 summaryMap.put(key, summary);
             }
 
-            summary.setCommitCount(summary.getCommitCount() + 1);
-            if ("merge_request".equalsIgnoreCase(event != null ? event.getEventType() : null)) {
+            if (event != null && "merge_request".equalsIgnoreCase(event.getObjectType())) {
                 summary.setMrCount(summary.getMrCount() + 1);
+            } else {
+                summary.setCommitCount(summary.getCommitCount() + resolveCommitCount(event));
             }
             summary.setReviewCount(summary.getReviewCount() + 1);
 
@@ -95,6 +101,18 @@ public class DailyReportAggregationService {
             upsertRecord(summary);
         }
         return summaries;
+    }
+
+    private int resolveCommitCount(CodeReviewEventEntity event) {
+        if (event == null || !"push".equalsIgnoreCase(event.getObjectType())
+            || !StringUtils.hasText(event.getPayloadJson())) return 1;
+        try {
+            GitLabWebhookPayload push = objectMapper.readValue(event.getPayloadJson(), GitLabWebhookPayload.class);
+            if (push.getTotalCommitsCount() != null) return push.getTotalCommitsCount();
+            return push.getCommits() == null ? 0 : push.getCommits().size();
+        } catch (Exception ex) {
+            return 1;
+        }
     }
 
     private Map<Long, CodeReviewEventEntity> loadEventMap(List<CodeReviewTaskEntity> tasks) {

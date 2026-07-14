@@ -20,6 +20,10 @@ public class ReviewExecutionContext {
     private String sourceRef;
     private String targetRef;
     private String headSha;
+    private String pushBranch;
+    private String beforeSha;
+    private String afterSha;
+    private Integer commitCount;
     private GitLabChangesPayload mergeRequestChanges;
     private List<ReviewFileContext> fileContexts;
     private ReviewContextStats contextStats;

@@ -14,6 +14,7 @@ import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import com.vemo.codereview.review.mapper.ReviewCommentStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewResultStoreMapper;
+import com.vemo.codereview.review.model.ReviewExecutionContext;
 import java.util.Date;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -130,5 +131,113 @@ class GitLabCommentPublisherTest {
                 org.mockito.ArgumentMatchers.eq("abcdef123456"),
                 org.mockito.ArgumentMatchers.contains("Push review summary"),
                 org.mockito.ArgumentMatchers.isNull());
+    }
+
+    @Test
+    void shouldPublishOnePushRangeSummaryToAfterSha() {
+        Date now = new Date();
+        CodeReviewResultEntity result = new CodeReviewResultEntity();
+        result.setTaskId(103L);
+        result.setProviderName("openai-compatible");
+        result.setModelName("model");
+        result.setRiskLevel("HIGH");
+        result.setSummary("Range summary");
+        result.setCreatedAt(now);
+        codeReviewResultMapper.insert(result);
+        CodeReviewCommentEntity comment = new CodeReviewCommentEntity();
+        comment.setResultId(result.getId());
+        comment.setFilePath("src/A.java");
+        comment.setLineNo(42);
+        comment.setSeverity("HIGH");
+        comment.setCategory("Correctness");
+        comment.setMessage("Issue");
+        comment.setCommentHash("range-hash");
+        comment.setIsPosted(Boolean.FALSE);
+        comment.setCreatedAt(now);
+        codeReviewCommentMapper.insert(comment);
+        ReviewExecutionContext context = new ReviewExecutionContext();
+        context.setPushBranch("test-cr");
+        context.setBeforeSha("base-a");
+        context.setAfterSha("head-c");
+        context.setCommitCount(3);
+
+        boolean published = gitLabCommentPublisher.publishPushRange(
+            null, 1001L, context, result, null);
+
+        assertTrue(published);
+        verify(gitLabReviewTargetService, times(1)).publishCommitNote(
+            org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(1001L),
+            org.mockito.ArgumentMatchers.eq("head-c"),
+            org.mockito.ArgumentMatchers.argThat(body -> body.contains("test-cr")
+                && body.contains("base-a..head-c") && body.contains("src/A.java") && body.contains("42")),
+            org.mockito.ArgumentMatchers.isNull());
+    }
+
+    @Test
+    void shouldPublishMergedMrCommitRegardlessOfMrPostedState() {
+        Date now = new Date();
+        Date originalPostedAt = new Date(1_700_000_000_000L);
+        CodeReviewResultEntity result = new CodeReviewResultEntity();
+        result.setTaskId(104L);
+        result.setProviderName("openai-compatible");
+        result.setModelName("model");
+        result.setRiskLevel("HIGH");
+        result.setSummary("Found one issue");
+        result.setAdvice("Fix before release");
+        result.setCreatedAt(now);
+        codeReviewResultMapper.insert(result);
+
+        CodeReviewCommentEntity comment = new CodeReviewCommentEntity();
+        comment.setResultId(result.getId());
+        comment.setFilePath("src/main/java/com/example/A.java");
+        comment.setLineNo(42);
+        comment.setSeverity("HIGH");
+        comment.setCategory("Correctness");
+        comment.setMessage("Issue");
+        comment.setSuggestion("Fix it");
+        comment.setCommentHash("merged-mr-posted-hash");
+        comment.setIsPosted(Boolean.TRUE);
+        comment.setPostedAt(originalPostedAt);
+        comment.setCreatedAt(now);
+        codeReviewCommentMapper.insert(comment);
+
+        boolean published = gitLabCommentPublisher.publishMergedMrCommit(
+            null, 1001L, "merge-sha", "Review lifecycle", "test-cr", result, null);
+
+        assertTrue(published);
+        verify(gitLabReviewTargetService, times(1)).publishCommitNote(
+            org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(1001L),
+            org.mockito.ArgumentMatchers.eq("merge-sha"),
+            org.mockito.ArgumentMatchers.argThat(body -> body.contains("AI Code Review - Merged MR")
+                && body.contains("Review lifecycle") && body.contains("test-cr")
+                && body.contains("merge-sha") && body.contains("Found one issue")
+                && body.contains("src/main/java/com/example/A.java")),
+            org.mockito.ArgumentMatchers.isNull());
+        CodeReviewCommentEntity savedComment = codeReviewCommentMapper.selectById(comment.getId());
+        assertEquals(Boolean.TRUE, savedComment.getIsPosted());
+        assertEquals(originalPostedAt, savedComment.getPostedAt());
+    }
+
+    @Test
+    void shouldPublishMergedMrCommitWhenReviewHasNoComments() {
+        Date now = new Date();
+        CodeReviewResultEntity result = new CodeReviewResultEntity();
+        result.setTaskId(105L);
+        result.setProviderName("openai-compatible");
+        result.setModelName("model");
+        result.setRiskLevel("LOW");
+        result.setSummary("Review passed");
+        result.setCreatedAt(now);
+        codeReviewResultMapper.insert(result);
+
+        boolean published = gitLabCommentPublisher.publishMergedMrCommit(
+            null, 1001L, "merge-empty-sha", "No issue MR", "test-cr", result, null);
+
+        assertTrue(published);
+        verify(gitLabReviewTargetService, times(1)).publishCommitNote(
+            org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(1001L),
+            org.mockito.ArgumentMatchers.eq("merge-empty-sha"),
+            org.mockito.ArgumentMatchers.contains("No issues requiring fixes were found."),
+            org.mockito.ArgumentMatchers.isNull());
     }
 }

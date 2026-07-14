@@ -13,7 +13,8 @@ Tmp*.java
 web-ui/node_modules/
 web-ui/dist/
 dist-images/
-docs/plans/
+docs/superpowers/plans/
+docs/superpowers/specs/
 deploy/DEPLOY.md
 src/main/resources/application-local.yml
 src/main/resources/application-*.local.yml

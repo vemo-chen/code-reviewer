@@ -24,6 +24,10 @@ public class LlmGatewayService {
 
     public ChatCompletionResponse review(Long projectId, ReviewPromptPayload reviewPrompt) {
         LlmRuntimeConfig runtimeConfig = llmConfigResolverService.resolve(projectId);
+        return review(runtimeConfig, reviewPrompt);
+    }
+
+    public ChatCompletionResponse review(LlmRuntimeConfig runtimeConfig, ReviewPromptPayload reviewPrompt) {
         ChatCompletionRequest request = new ChatCompletionRequest();
         request.setModel(runtimeConfig.getModelName());
         request.setTemperature(runtimeConfig.getTemperature() == null ? null : runtimeConfig.getTemperature().doubleValue());

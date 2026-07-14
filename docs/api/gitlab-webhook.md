@@ -19,16 +19,19 @@
 
 ### 3.1 Merge Request Hook
 
-- 拉取 Merge Request changes
-- 调用大模型审查
+- 同一个 MR 生命周期固定对应一条 event 和最多一条 `MR_REVIEW` task
+- 按目标分支匹配审查配置；新 head 复用并重置同一 task，相同 head 只更新生命周期状态
+- 拉取最新 Merge Request changes 并生成一份聚合结果
 - 根据项目配置决定是否回写 MR Note
 - 根据项目配置决定是否发送企业微信通知
 
 ### 3.2 Push Hook
 
-- 只审查本次 push 的最新提交，即 `after` 对应的 commit
-- 拉取该 commit 的 diff
-- 根据项目配置决定是否回写 Commit Note
+- 一次 push webhook 固定对应一条 event 和最多一条 `PUSH_REVIEW` task
+- 使用 GitLab Compare `before..after&straight=true` 审查本次 push 的净变化，不按 commits 拆 task
+- MR 审查成功且合并 SHA 证据匹配时，目标分支 push 整体忽略；无法确认或 MR 未成功时回退审查完整 range
+- 多个内部 semantic batch 只持久化一份结果
+- 有问题时只向 `after` SHA 回写一条汇总 Note，正文包含 push range 与问题位置；无问题不回写 Note
 - 根据项目配置决定是否发送企业微信通知
 
 ## 4. 项目维度命中规则

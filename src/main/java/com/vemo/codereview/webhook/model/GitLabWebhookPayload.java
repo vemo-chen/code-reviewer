@@ -31,12 +31,15 @@ public class GitLabWebhookPayload {
     private String before;
     private String after;
     private List<Commit> commits;
+    @JsonProperty("total_commits_count")
+    private Integer totalCommitsCount;
 
     @Getter
     @Setter
     public static class User {
         private Long id;
         private String name;
+        private String username;
     }
 
     @Getter
@@ -53,6 +56,11 @@ public class GitLabWebhookPayload {
         private Long iid;
         private String title;
         private String action;
+        private String state;
+        @JsonProperty("merge_commit_sha")
+        private String mergeCommitSha;
+        @JsonProperty("squash_commit_sha")
+        private String squashCommitSha;
         @JsonProperty("created_at")
         private String createdAt;
         @JsonProperty("updated_at")

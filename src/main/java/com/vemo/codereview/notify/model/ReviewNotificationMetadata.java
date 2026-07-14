@@ -13,4 +13,8 @@ public class ReviewNotificationMetadata {
     private String submitter;
     private String submitBranch;
     private String submitTime;
+    private String pushBranch;
+    private String beforeSha;
+    private String afterSha;
+    private Integer commitCount;
 }

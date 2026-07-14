@@ -109,4 +109,43 @@ class ReviewResultParserTest {
 
         assertEquals("REVIEW_RESULT_TRUNCATED", exception.getCode());
     }
+
+    @Test
+    void shouldRepairUnescapedQuotesInsideModelJsonStringValues() {
+        ChatCompletionResponse response = new ChatCompletionResponse();
+        ChatCompletionResponse.Message message = new ChatCompletionResponse.Message();
+        message.setRole("assistant");
+        message.setContent("{"
+            + "\"suggestedScore\":99,"
+            + "\"summary\":\"本次提交添加了\"测试push事件\"的描述。\","
+            + "\"briefSummary\":\"类注释\"测试push事件\"与类功能不符。\","
+            + "\"riskLevel\":\"LOW\","
+            + "\"comments\":[{"
+            + "\"filePath\":\"src/main/java/com/dxf/generate/utils/GeoUtil.java\","
+            + "\"line\":5,"
+            + "\"severity\":\"LOW\","
+            + "\"category\":\"可维护性\","
+            + "\"message\":\"新增的类注释\"测试push事件\"与类的实际功能无关。\","
+            + "\"suggestion\":\"修改为描述类功能的注释，例如\"地理坐标计算工具类\"。\","
+            + "\"suggestedCode\":\"/**\n * 地理坐标计算工具类\n */\""
+            + "}]"
+            + "}");
+        ChatCompletionResponse.Choice choice = new ChatCompletionResponse.Choice();
+        choice.setIndex(0);
+        choice.setMessage(message);
+        response.setChoices(Collections.singletonList(choice));
+
+        ReviewResponseParser parser = new ReviewResponseParser(new ObjectMapper());
+        ReviewSummary summary = parser.parse(response);
+
+        assertEquals(Integer.valueOf(99), summary.getSuggestedScore());
+        assertEquals("本次提交添加了\"测试push事件\"的描述。", summary.getSummary());
+        assertEquals("类注释\"测试push事件\"与类功能不符。", summary.getBriefSummary());
+        assertEquals("LOW", summary.getRiskLevel());
+        assertEquals(1, summary.getComments().size());
+        assertEquals("新增的类注释\"测试push事件\"与类的实际功能无关。",
+            summary.getComments().get(0).getMessage());
+        assertEquals("/**\n * 地理坐标计算工具类\n */",
+            summary.getComments().get(0).getSuggestedCode());
+    }
 }

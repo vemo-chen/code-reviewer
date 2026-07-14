@@ -24,6 +24,9 @@ public class CodeReviewEventEntity {
     private String operatorName;
     private String submitBranch;
     private Date submitTime;
+    private String mrState;
+    private String mrHeadSha;
+    private String mergedSha;
     private String idempotentKey;
     private String payloadJson;
     private String status;

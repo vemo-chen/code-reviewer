@@ -7,6 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.vemo.codereview.common.config.ReviewRuleProperties;
 import com.vemo.codereview.platform.gitlab.model.GitLabChangesPayload;
 import com.vemo.codereview.review.model.ReviewExecutionContext;
+import com.vemo.codereview.review.model.ReviewExecutionBatch;
+import com.vemo.codereview.review.model.ReviewPromptMode;
+import com.vemo.codereview.review.model.ReviewSemanticUnit;
 import com.vemo.codereview.review.model.ReviewPromptPayload;
 import com.vemo.codereview.review.service.ChangeReviewFilter;
 import com.vemo.codereview.review.service.DiffChunkService;
@@ -100,5 +103,36 @@ class PromptBuilderServiceTest {
         assertTrue(prompt.getUserPrompt().contains("Total changes: 1"));
         assertTrue(prompt.getUserPrompt().contains("Reviewable files: 1"));
         assertTrue(prompt.getUserPrompt().contains("base score from 0 to 100"));
+    }
+
+    @Test
+    void shouldRenderPushRangeBatchMetadataAndCompactLimits() {
+        ReviewRuleService rules = new ReviewRuleService(new ReviewRuleProperties());
+        rules.init();
+        PromptBuilderService service = new PromptBuilderService(new ChangeReviewFilter(), new DiffChunkService(), rules);
+        ReviewExecutionContext context = new ReviewExecutionContext();
+        context.setProjectId(1001L);
+        context.setTargetType("push");
+        context.setPushBranch("test-cr");
+        context.setBeforeSha("base-a");
+        context.setAfterSha("head-c");
+        context.setCommitCount(3);
+        ReviewSemanticUnit unit = new ReviewSemanticUnit();
+        unit.setUnitKey("src/A.java|METHOD|10|20");
+        unit.setFilePath("src/A.java");
+        unit.setChangeType("MODIFIED");
+        unit.setDiff("+change");
+        unit.setExpandedCode("void update() {}");
+        ReviewExecutionBatch batch = new ReviewExecutionBatch();
+        batch.add(unit);
+
+        ReviewPromptPayload prompt = service.build(context, batch, 2, 3, ReviewPromptMode.COMPACT);
+
+        assertTrue(prompt.getUserPrompt().contains("Push Branch: test-cr"));
+        assertTrue(prompt.getUserPrompt().contains("Push Range: base-a..head-c"));
+        assertTrue(prompt.getUserPrompt().contains("Commit Count: 3"));
+        assertTrue(prompt.getUserPrompt().contains("Batch: 2/3"));
+        assertTrue(prompt.getUserPrompt().contains("suggestedCode must be null"));
+        assertEquals(1, prompt.getFiles().size());
     }
 }

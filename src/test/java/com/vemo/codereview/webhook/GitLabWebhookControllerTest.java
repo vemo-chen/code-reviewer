@@ -139,7 +139,7 @@ class GitLabWebhookControllerTest {
         assertNotNull(event);
         assertNotNull(task);
         assertEquals("TASK_CREATED", event.getStatus());
-        assertEquals("commit", event.getObjectType());
+        assertEquals("push", event.getObjectType());
         assertEquals("abcdef123456", task.getTargetId());
         assertEquals("PUSH_REVIEW", task.getTaskType());
         assertEquals("Add push review", task.getTargetTitle());
@@ -213,7 +213,7 @@ class GitLabWebhookControllerTest {
     }
 
     @Test
-    void shouldReviewOnlyNonMergeCommitsInMultiCommitPush() throws Exception {
+    void shouldCreateOneEventAndTaskForMultiCommitPush() throws Exception {
         projectProfileMapper.delete(new QueryWrapper<ProjectProfileEntity>());
         ProjectProfileEntity project = insertProject(1005L, true, true, "feature/review");
         String payload = "{"
@@ -241,26 +241,18 @@ class GitLabWebhookControllerTest {
 
         Long eventCount = codeReviewEventMapper.selectCount(new QueryWrapper<CodeReviewEventEntity>());
         Long taskCount = codeReviewTaskMapper.selectCount(new QueryWrapper<CodeReviewTaskEntity>());
-        CodeReviewTaskEntity firstTask = codeReviewTaskMapper.selectOne(
-            new QueryWrapper<CodeReviewTaskEntity>().eq("target_id", "normal11111111"));
-        CodeReviewTaskEntity secondTask = codeReviewTaskMapper.selectOne(
-            new QueryWrapper<CodeReviewTaskEntity>().eq("target_id", "normal22222222"));
-        CodeReviewTaskEntity mergeTask = codeReviewTaskMapper.selectOne(
+        CodeReviewTaskEntity task = codeReviewTaskMapper.selectOne(
             new QueryWrapper<CodeReviewTaskEntity>().eq("target_id", "merge33333333"));
-        CodeReviewEventEntity firstEvent = codeReviewEventMapper.selectOne(
-            new QueryWrapper<CodeReviewEventEntity>().eq("object_id", "normal11111111"));
-        CodeReviewEventEntity secondEvent = codeReviewEventMapper.selectOne(
-            new QueryWrapper<CodeReviewEventEntity>().eq("object_id", "normal22222222"));
+        CodeReviewEventEntity event = codeReviewEventMapper.selectOne(
+            new QueryWrapper<CodeReviewEventEntity>().eq("object_id", "merge33333333"));
 
-        assertEquals(Long.valueOf(2L), eventCount);
-        assertEquals(Long.valueOf(2L), taskCount);
-        assertNotNull(firstTask);
-        assertNotNull(secondTask);
-        assertNull(mergeTask);
-        assertEquals(project.getId(), firstEvent.getProjectId());
-        assertEquals(project.getId(), secondEvent.getProjectId());
-        assertEquals(project.getId(), firstTask.getProjectId());
-        assertEquals(project.getId(), secondTask.getProjectId());
+        assertEquals(Long.valueOf(1L), eventCount);
+        assertEquals(Long.valueOf(1L), taskCount);
+        assertNotNull(event);
+        assertNotNull(task);
+        assertEquals("push", event.getObjectType());
+        assertEquals(project.getId(), event.getProjectId());
+        assertEquals(project.getId(), task.getProjectId());
     }
 
     @Test

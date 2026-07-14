@@ -2,18 +2,26 @@ package com.vemo.codereview.review;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.vemo.codereview.CodeReviewerApplication;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
 import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
+import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
+import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewCommentStoreMapper;
+import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewResultStoreMapper;
+import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
+import com.vemo.codereview.review.model.AggregatedReviewOutput;
+import com.vemo.codereview.review.model.MrReviewCompletion;
 import com.vemo.codereview.review.model.ReviewCommentDraft;
 import com.vemo.codereview.review.model.ReviewSummary;
 import com.vemo.codereview.review.service.ReviewResultPersistenceService;
 import java.util.Collections;
+import java.util.Date;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -38,6 +46,61 @@ class ReviewResultPersistenceServiceTest {
 
     @Autowired
     private ReviewCommentStoreMapper codeReviewCommentMapper;
+
+    @Autowired
+    private ReviewEventStoreMapper eventMapper;
+
+    @Autowired
+    private ReviewTaskStoreMapper taskMapper;
+
+    @Test
+    void shouldCompleteMrReviewWithFixStatusAtomically() {
+        Date now = new Date();
+        CodeReviewEventEntity event = new CodeReviewEventEntity();
+        event.setSourcePlatform("gitlab");
+        event.setEventType("merge_request");
+        event.setProjectId(3001L);
+        event.setProjectName("MR atomic completion");
+        event.setObjectId("mr-atomic-1");
+        event.setObjectType("merge_request");
+        event.setSubmitBranch("test-cr");
+        event.setMrHeadSha("head-1");
+        event.setIdempotentKey("mr-atomic-fix-status-1");
+        event.setStatus("TASK_CREATED");
+        event.setCreatedAt(now);
+        event.setUpdatedAt(now);
+        eventMapper.insert(event);
+
+        CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setEventId(event.getId());
+        task.setTaskType("MR_REVIEW");
+        task.setSourcePlatform("gitlab");
+        task.setProjectId(3001L);
+        task.setTargetId("31");
+        task.setTargetTitle("Atomic MR completion");
+        task.setStatus("RUNNING");
+        task.setRetryCount(0);
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        taskMapper.insert(task);
+
+        ReviewSummary summary = new ReviewSummary();
+        summary.setRiskLevel("LOW");
+        summary.setSummary("No blocking issue");
+        summary.setComments(Collections.<ReviewCommentDraft>emptyList());
+        AggregatedReviewOutput output = new AggregatedReviewOutput();
+        output.setSummary(summary);
+        output.setProviderName("openai-compatible");
+        output.setModelName("deepseek-chat");
+
+        MrReviewCompletion completion = reviewResultPersistenceService.completeMrReview(
+            task.getId(), "head-1", output, null);
+        CodeReviewTaskEntity savedTask = taskMapper.selectById(task.getId());
+
+        assertTrue(completion.isCompleted());
+        assertEquals("SUCCESS", savedTask.getStatus());
+        assertEquals("TO_BE_FIXED", savedTask.getFixStatus());
+    }
 
     @Test
     void shouldPersistResultSummaryCommentsAndScores() {

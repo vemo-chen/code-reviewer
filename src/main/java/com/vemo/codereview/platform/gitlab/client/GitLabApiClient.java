@@ -5,6 +5,7 @@ import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.platform.gitlab.model.GitLabBranchPayload;
 import com.vemo.codereview.platform.gitlab.model.GitLabChangesPayload;
 import com.vemo.codereview.platform.gitlab.model.GitLabCommitPayload;
+import com.vemo.codereview.platform.gitlab.model.GitLabComparePayload;
 import com.vemo.codereview.platform.gitlab.model.GitLabCommitNoteRequest;
 import com.vemo.codereview.platform.gitlab.model.GitLabNoteRequest;
 import com.vemo.codereview.platform.gitlab.model.GitLabProjectPayload;
@@ -18,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.MediaType;
+import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -101,6 +103,72 @@ public class GitLabApiClient {
             .build();
         GitLabChangesPayload.Change[] response = execute(request, GitLabChangesPayload.Change[].class);
         return Arrays.asList(response);
+    }
+
+    public GitLabCommitPayload getCommit(String baseUrl, Long projectId, String commitSha, String token) {
+        Request request = new Request.Builder()
+            .url(resolveBaseUrl(baseUrl) + "/api/v4/projects/" + projectId
+                + "/repository/commits/" + encodeQueryParam(commitSha))
+            .header("PRIVATE-TOKEN", resolveApiToken(token))
+            .get()
+            .build();
+        return execute(request, GitLabCommitPayload.class);
+    }
+
+    public List<GitLabCommitPayload> listReachableCommits(String baseUrl, Long projectId, String after,
+                                                          int requiredCount, String token) {
+        List<GitLabCommitPayload> commits = new ArrayList<GitLabCommitPayload>();
+        int page = 1;
+        while (commits.size() < requiredCount) {
+            Request request = new Request.Builder()
+                .url(resolveBaseUrl(baseUrl) + "/api/v4/projects/" + projectId
+                    + "/repository/commits?ref_name=" + encodeQueryParam(after)
+                    + "&per_page=100&page=" + page)
+                .header("PRIVATE-TOKEN", resolveApiToken(token))
+                .get()
+                .build();
+            GitLabCommitPayload[] response = execute(request, GitLabCommitPayload[].class);
+            if (response.length == 0) {
+                break;
+            }
+            commits.addAll(Arrays.asList(response));
+            if (response.length < 100) {
+                break;
+            }
+            page++;
+        }
+        return commits;
+    }
+
+    public GitLabComparePayload compare(String baseUrl, Long projectId, String before, String after, String token) {
+        HttpUrl url = HttpUrl.parse(resolveBaseUrl(baseUrl)
+            + "/api/v4/projects/" + projectId + "/repository/compare").newBuilder()
+            .addQueryParameter("from", before)
+            .addQueryParameter("to", after)
+            .addQueryParameter("straight", "true")
+            .build();
+        Request request = new Request.Builder()
+            .url(url)
+            .header("PRIVATE-TOKEN", resolveApiToken(token))
+            .get()
+            .build();
+        GitLabComparePayload payload = execute(request, GitLabComparePayload.class);
+        validateCompare(payload);
+        return payload;
+    }
+
+    private void validateCompare(GitLabComparePayload payload) {
+        if (payload == null || Boolean.TRUE.equals(payload.getCompareTimeout()) || payload.getDiffs() == null) {
+            throw new DomainException("GITLAB_COMPARE_INCOMPLETE", "GitLab compare response is incomplete");
+        }
+        if (!Boolean.TRUE.equals(payload.getCompareSameRef()) && payload.getDiffs().isEmpty()) {
+            throw new DomainException("GITLAB_COMPARE_INCOMPLETE", "GitLab compare returned an unexpected empty diff");
+        }
+        for (GitLabChangesPayload.Change diff : payload.getDiffs()) {
+            if (diff == null || Boolean.TRUE.equals(diff.getCollapsed()) || Boolean.TRUE.equals(diff.getTooLarge())) {
+                throw new DomainException("GITLAB_COMPARE_INCOMPLETE", "GitLab compare contains an incomplete diff");
+            }
+        }
     }
 
     public List<GitLabCommitPayload> listRepositoryCommits(
