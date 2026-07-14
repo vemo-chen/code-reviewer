@@ -17,17 +17,18 @@
         <div class="version-card-head">
           <div class="version-card-title-group">
             <h3 class="version-card-title">版本说明</h3>
-            <span class="current-version">当前版本：V1.2</span>
+            <span class="current-version">当前版本：V1.3</span>
           </div>
           <button type="button" class="version-history-link" @click="historyDialogVisible = true">查看历史版本</button>
         </div>
         <ul class="version-list">
           <li>
-            <strong>V1.2</strong>
+            <strong>V1.3</strong>
             <ol>
-              <li>项目管理新增“更多 -&gt; 自定义审查”，支持按提交时间区间批量审查 commit，并提供“跳过已审查 / 强制重审”两种处理方式。</li>
-              <li>审查记录补齐提交时间与任务创建时间，并按提交时间倒序展示，便于按真实代码提交顺序回看任务。</li>
-              <li>操作入口进一步收敛到轻量“更多”菜单，自定义审查仅对管理员和项目 Owner 可见。</li>
+              <li>优化 GitLab Merge Request 审查策略，支持合并前对源分支 Diff 进行审查。</li>
+              <li>优化 GitLab Push 审查流程，合并单次 Push 产生的审查记录。</li>
+              <li>优化大批量代码变更审查，按语义单元拆分审查批次，减少长 Diff 截断和内容遗漏。</li>
+              <li>登录页启用全屏 AI Code Reviewer 背景，并优化登录框布局。</li>
             </ol>
           </li>
         </ul>
@@ -279,6 +280,14 @@
 
     <el-dialog v-model="historyDialogVisible" title="历史版本" width="620px" destroy-on-close class="version-history-dialog">
       <ul class="version-list version-list--dialog">
+        <li>
+          <strong>V1.2</strong>
+          <ol>
+            <li>项目管理新增“更多 -&gt; 自定义审查”，支持按提交时间区间批量审查 commit，并提供“跳过已审查 / 强制重审”两种处理方式。</li>
+            <li>审查记录补齐提交时间与任务创建时间，并按提交时间倒序展示，便于按真实代码提交顺序回看任务。</li>
+            <li>操作入口进一步收敛到轻量“更多”菜单，自定义审查仅对管理员和项目 Owner 可见。</li>
+          </ol>
+        </li>
         <li>
           <strong>V1.1</strong>
           <ol>

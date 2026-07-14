@@ -7,7 +7,7 @@
         </div>
         <div class="topbar-title">
           <span>Code Reviewer</span>
-          <em>v1.2</em>
+          <em>v1.3</em>
         </div>
       </div>
 
