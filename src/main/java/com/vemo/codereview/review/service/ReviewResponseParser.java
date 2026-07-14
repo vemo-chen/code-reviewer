@@ -4,6 +4,7 @@ import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
 import com.vemo.codereview.review.model.ReviewCommentDraft;
 import com.vemo.codereview.review.model.ReviewSummary;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -41,7 +42,7 @@ public class ReviewResponseParser {
         }
 
         try {
-            JsonNode root = objectMapper.readTree(extractJson(content));
+            JsonNode root = readReviewJson(extractJson(content));
             ReviewSummary summary = new ReviewSummary();
             summary.setSuggestedScore(readScore(root, "suggestedScore", DEFAULT_SUGGESTED_SCORE));
             summary.setSummary(readText(root, "summary", "No summary provided"));
@@ -56,6 +57,14 @@ public class ReviewResponseParser {
                 "REVIEW_RESULT_PARSE_ERROR",
                 "Failed to parse review result JSON. content=" + abbreviate(content)
             );
+        }
+    }
+
+    private JsonNode readReviewJson(String json) throws JsonProcessingException {
+        try {
+            return objectMapper.readTree(json);
+        } catch (JsonProcessingException ex) {
+            return objectMapper.readTree(repairJsonStringLiterals(json));
         }
     }
 
@@ -96,6 +105,69 @@ public class ReviewResponseParser {
             return normalized;
         }
         return normalized.substring(0, 500) + "...";
+    }
+
+    private String repairJsonStringLiterals(String json) {
+        if (json == null || json.isEmpty()) {
+            return json;
+        }
+        StringBuilder repaired = new StringBuilder(json.length() + 32);
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < json.length(); i++) {
+            char current = json.charAt(i);
+            if (!inString) {
+                if (current == '"') {
+                    inString = true;
+                }
+                repaired.append(current);
+                continue;
+            }
+            if (escaped) {
+                repaired.append(current);
+                escaped = false;
+                continue;
+            }
+            if (current == '\\') {
+                repaired.append(current);
+                escaped = true;
+                continue;
+            }
+            if (current == '"') {
+                if (isLikelyClosingQuote(json, i)) {
+                    inString = false;
+                    repaired.append(current);
+                } else {
+                    repaired.append("\\\"");
+                }
+                continue;
+            }
+            if (current == '\n') {
+                repaired.append("\\n");
+                continue;
+            }
+            if (current == '\r') {
+                repaired.append("\\r");
+                continue;
+            }
+            if (current == '\t') {
+                repaired.append("\\t");
+                continue;
+            }
+            repaired.append(current);
+        }
+        return repaired.toString();
+    }
+
+    private boolean isLikelyClosingQuote(String json, int quoteIndex) {
+        for (int i = quoteIndex + 1; i < json.length(); i++) {
+            char next = json.charAt(i);
+            if (Character.isWhitespace(next)) {
+                continue;
+            }
+            return next == ':' || next == ',' || next == '}' || next == ']';
+        }
+        return true;
     }
 
     private List<ReviewCommentDraft> parseComments(JsonNode commentsNode) {
