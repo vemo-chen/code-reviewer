@@ -11,6 +11,7 @@ import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
 import com.vemo.codereview.webhook.model.GitLabWebhookPayload;
 import com.vemo.codereview.webhook.model.MergePushDecision;
+import com.vemo.codereview.webhook.model.MergePushCorrelationResult;
 import com.vemo.codereview.webhook.service.MergePushCorrelationService;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
@@ -27,15 +28,17 @@ class GitLabMergePushCorrelationTest {
     void shouldSkipPushCoveredBySuccessfulMergeRequest() {
         CodeReviewEventEntity event = mrEvent();
         CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setId(88L);
         task.setTaskType("MR_REVIEW");
         task.setStatus("SUCCESS");
         when(eventMapper.selectList(any())).thenReturn(Arrays.asList(event));
         when(taskMapper.selectOne(any())).thenReturn(task);
 
-        MergePushDecision decision = new MergePushCorrelationService(eventMapper, taskMapper)
-            .decide(push("merge-sha", "c2", "Merge branch 'source-cr'"), project());
+        MergePushCorrelationResult result = new MergePushCorrelationService(eventMapper, taskMapper)
+            .correlate(push("merge-sha", "c2", "Merge branch 'source-cr'"), project());
 
-        assertEquals(MergePushDecision.SKIP_ALREADY_REVIEWED, decision);
+        assertEquals(MergePushDecision.SKIP_ALREADY_REVIEWED, result.getDecision());
+        assertEquals(Long.valueOf(88L), result.getReviewedMrTaskId());
     }
 
     @Test
@@ -46,10 +49,11 @@ class GitLabMergePushCorrelationTest {
         when(eventMapper.selectList(any())).thenReturn(Arrays.asList(mrEvent()));
         when(taskMapper.selectOne(any())).thenReturn(task);
 
-        MergePushDecision decision = new MergePushCorrelationService(eventMapper, taskMapper)
-            .decide(push("merge-sha", "c2", "Merge branch 'source-cr'"), project());
+        MergePushCorrelationResult result = new MergePushCorrelationService(eventMapper, taskMapper)
+            .correlate(push("merge-sha", "c2", "Merge branch 'source-cr'"), project());
 
-        assertEquals(MergePushDecision.CREATE_PUSH_REVIEW, decision);
+        assertEquals(MergePushDecision.CREATE_PUSH_REVIEW, result.getDecision());
+        assertEquals(null, result.getReviewedMrTaskId());
     }
 
     private CodeReviewEventEntity mrEvent() {

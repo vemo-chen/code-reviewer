@@ -7,6 +7,7 @@ import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
 import com.vemo.codereview.webhook.model.GitLabWebhookPayload;
+import com.vemo.codereview.webhook.model.MergePushCorrelationResult;
 import com.vemo.codereview.webhook.model.MergePushDecision;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,10 @@ public class MergePushCorrelationService {
     }
 
     public MergePushDecision decide(GitLabWebhookPayload push, ProjectProfileEntity project) {
+        return correlate(push, project).getDecision();
+    }
+
+    public MergePushCorrelationResult correlate(GitLabWebhookPayload push, ProjectProfileEntity project) {
         String branch = branch(push.getRef());
         List<CodeReviewEventEntity> events = eventMapper.selectList(new QueryWrapper<CodeReviewEventEntity>()
             .eq("project_id", project.getId()).eq("object_type", "merge_request").eq("submit_branch", branch)
@@ -34,13 +39,15 @@ public class MergePushCorrelationService {
                 .eq("event_id", event.getId()).last("limit 1"));
             if (task != null && "MR_REVIEW".equals(task.getTaskType()) && "SUCCESS".equals(task.getStatus())
                 && !"IGNORED".equals(event.getStatus()) && !"FAILED".equals(event.getStatus())) {
-                return MergePushDecision.SKIP_ALREADY_REVIEWED;
+                return MergePushCorrelationResult.reviewed(task.getId());
             }
             correlatedToUnsuccessful = true;
         }
-        if (correlatedToUnsuccessful) return MergePushDecision.CREATE_PUSH_REVIEW;
-        return containsOnlyMergeCommits(push) ? MergePushDecision.IGNORE_NO_CODE
-            : MergePushDecision.CREATE_PUSH_REVIEW;
+        if (correlatedToUnsuccessful) {
+            return MergePushCorrelationResult.decision(MergePushDecision.CREATE_PUSH_REVIEW);
+        }
+        return MergePushCorrelationResult.decision(containsOnlyMergeCommits(push)
+            ? MergePushDecision.IGNORE_NO_CODE : MergePushDecision.CREATE_PUSH_REVIEW);
     }
 
     private boolean hasEvidence(GitLabWebhookPayload push, CodeReviewEventEntity event) {
