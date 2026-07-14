@@ -4,18 +4,22 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.common.service.IdempotencyService;
 import com.vemo.codereview.dashboard.entity.ProjectProfileEntity;
+import com.vemo.codereview.platform.gitlab.service.GitLabCommentPublisher;
 import com.vemo.codereview.project.service.ProjectConfigService;
 import com.vemo.codereview.review.entity.CodeReviewEventEntity;
+import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
+import com.vemo.codereview.review.mapper.ReviewResultStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
 import com.vemo.codereview.review.model.ReviewEventLifecycle;
 import com.vemo.codereview.review.model.ReviewTaskLifecycle;
 import com.vemo.codereview.review.service.ReviewStateService;
 import com.vemo.codereview.review.service.ReviewTaskDispatcher;
 import com.vemo.codereview.webhook.model.GitLabWebhookPayload;
-import com.vemo.codereview.webhook.model.StandardReviewEvent;
+import com.vemo.codereview.webhook.model.MergePushCorrelationResult;
 import com.vemo.codereview.webhook.model.MergePushDecision;
+import com.vemo.codereview.webhook.model.StandardReviewEvent;
 import com.vemo.codereview.webhook.support.GitLabWebhookEventNormalizer;
 import java.util.Date;
 import java.util.List;
@@ -35,31 +39,37 @@ public class GitLabWebhookHandlerService {
     private final IdempotencyService idempotencyService;
     private final ReviewEventStoreMapper codeReviewEventMapper;
     private final ReviewTaskStoreMapper codeReviewTaskMapper;
+    private final ReviewResultStoreMapper codeReviewResultMapper;
     private final ReviewTaskDispatcher reviewTaskDispatcher;
     private final ReviewStateService reviewStateService;
     private final ProjectConfigService projectConfigService;
     private final MergeRequestEventService mergeRequestEventService;
     private final MergePushCorrelationService mergePushCorrelationService;
+    private final GitLabCommentPublisher gitLabCommentPublisher;
 
     public GitLabWebhookHandlerService(
         GitLabWebhookEventNormalizer gitLabWebhookEventNormalizer,
         IdempotencyService idempotencyService,
         ReviewEventStoreMapper codeReviewEventMapper,
         ReviewTaskStoreMapper codeReviewTaskMapper,
+        ReviewResultStoreMapper codeReviewResultMapper,
         ReviewTaskDispatcher reviewTaskDispatcher,
         ReviewStateService reviewStateService,
         ProjectConfigService projectConfigService,
         MergeRequestEventService mergeRequestEventService,
-        MergePushCorrelationService mergePushCorrelationService) {
+        MergePushCorrelationService mergePushCorrelationService,
+        GitLabCommentPublisher gitLabCommentPublisher) {
         this.gitLabWebhookEventNormalizer = gitLabWebhookEventNormalizer;
         this.idempotencyService = idempotencyService;
         this.codeReviewEventMapper = codeReviewEventMapper;
         this.codeReviewTaskMapper = codeReviewTaskMapper;
+        this.codeReviewResultMapper = codeReviewResultMapper;
         this.reviewTaskDispatcher = reviewTaskDispatcher;
         this.reviewStateService = reviewStateService;
         this.projectConfigService = projectConfigService;
         this.mergeRequestEventService = mergeRequestEventService;
         this.mergePushCorrelationService = mergePushCorrelationService;
+        this.gitLabCommentPublisher = gitLabCommentPublisher;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -100,9 +110,18 @@ public class GitLabWebhookHandlerService {
                 return;
             }
             if (project != null) {
-                MergePushDecision decision = mergePushCorrelationService.decide(payload, project);
-                if (decision == MergePushDecision.SKIP_ALREADY_REVIEWED
-                    || decision == MergePushDecision.IGNORE_NO_CODE) {
+                MergePushCorrelationResult correlation = mergePushCorrelationService.correlate(payload, project);
+                MergePushDecision decision = correlation.getDecision();
+                if (decision == MergePushDecision.SKIP_ALREADY_REVIEWED) {
+                    boolean firstDelivery = createIgnoredEvent(event);
+                    if (firstDelivery && Boolean.TRUE.equals(project.getGitlabNoteEnabled())) {
+                        publishMergedMrCommit(project, event, payload, correlation.getReviewedMrTaskId());
+                    }
+                    log.info("webhook push ignored by merge correlation. decision={}, idempotentKey={}, elapsedMs={}",
+                        decision, event.getIdempotentKey(), elapsedMs(startNs));
+                    return;
+                }
+                if (decision == MergePushDecision.IGNORE_NO_CODE) {
                     createIgnoredEvent(event);
                     log.info("webhook push ignored by merge correlation. decision={}, idempotentKey={}, elapsedMs={}",
                         decision, event.getIdempotentKey(), elapsedMs(startNs));
@@ -174,14 +193,47 @@ public class GitLabWebhookHandlerService {
         }
     }
 
-    private void createIgnoredEvent(StandardReviewEvent event) {
+    private boolean createIgnoredEvent(StandardReviewEvent event) {
         CodeReviewEventEntity eventEntity = buildEventEntity(event, new Date());
         try {
             codeReviewEventMapper.insert(eventEntity);
         } catch (DuplicateKeyException ex) {
-            return;
+            return false;
         }
         reviewStateService.markEventIgnored(eventEntity);
+        return true;
+    }
+
+    private void publishMergedMrCommit(ProjectProfileEntity project, StandardReviewEvent event,
+                                       GitLabWebhookPayload payload, Long reviewedMrTaskId) {
+        if (reviewedMrTaskId == null) {
+            log.warn("merge commit note skipped because reviewed MR task id is missing. mergeSha={}",
+                payload == null ? null : payload.getAfter());
+            return;
+        }
+        CodeReviewTaskEntity task = codeReviewTaskMapper.selectById(reviewedMrTaskId);
+        if (task == null) {
+            log.warn("merge commit note skipped because MR task is missing. taskId={}, mergeSha={}",
+                reviewedMrTaskId, payload == null ? null : payload.getAfter());
+            return;
+        }
+        CodeReviewResultEntity result = codeReviewResultMapper.selectOne(new QueryWrapper<CodeReviewResultEntity>()
+            .eq("task_id", reviewedMrTaskId)
+            .orderByDesc("id")
+            .last("limit 1"));
+        if (result == null) {
+            log.warn("merge commit note skipped because MR result is missing. taskId={}, mergeSha={}",
+                reviewedMrTaskId, payload == null ? null : payload.getAfter());
+            return;
+        }
+        gitLabCommentPublisher.publishMergedMrCommit(
+            project.getGitlabProjectUrl(),
+            project.getGitlabProjectId(),
+            payload == null ? null : payload.getAfter(),
+            task.getTargetTitle(),
+            event == null ? null : event.getSubmitBranch(),
+            result,
+            project.getGitlabWebhookToken());
     }
 
     private void createReviewTask(StandardReviewEvent event, String taskType, long webhookStartNs) {
