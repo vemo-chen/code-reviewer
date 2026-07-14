@@ -15,6 +15,7 @@ import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.model.AggregatedReviewOutput;
 import com.vemo.codereview.review.model.MrReviewCompletion;
 import com.vemo.codereview.review.model.ReviewEventLifecycle;
+import com.vemo.codereview.review.model.ReviewFixStatus;
 import com.vemo.codereview.review.model.ReviewTaskLifecycle;
 import com.vemo.codereview.review.model.ReviewCodeSnippet;
 import com.vemo.codereview.review.model.ReviewCommentDraft;
@@ -176,6 +177,7 @@ public class ReviewResultPersistenceService {
             || !ReviewTaskLifecycle.RUNNING.name().equals(task.getStatus())) return completion;
         CodeReviewResultEntity result = persistAggregated(taskId, output, context);
         task.setStatus(ReviewTaskLifecycle.SUCCESS.name());
+        task.setFixStatus(ReviewFixStatus.TO_BE_FIXED.name());
         task.setErrorCode(null);
         task.setErrorMessage(null);
         task.setNextRetryAt(null);
