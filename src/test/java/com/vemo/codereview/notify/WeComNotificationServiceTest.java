@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.vemo.codereview.notify.client.WeComWebhookClient;
+import com.vemo.codereview.common.config.AppProperties;
 import com.vemo.codereview.notify.model.ReviewNotificationMetadata;
 import com.vemo.codereview.notify.service.WeComNotificationService;
 import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
@@ -32,7 +33,9 @@ class WeComNotificationServiceTest {
         mockWebServer.start();
 
         WeComWebhookClient webhookClient = new WeComWebhookClient(new ObjectMapper(), new OkHttpClient());
-        weComNotificationService = new WeComNotificationService(webhookClient);
+        AppProperties appProperties = new AppProperties();
+        appProperties.setPlatformUrl("http://10.12.8.132:5173/reviews");
+        weComNotificationService = new WeComNotificationService(webhookClient, appProperties);
     }
 
     @AfterEach
@@ -104,6 +107,7 @@ class WeComNotificationServiceTest {
         assertTrue(markdown.contains("**位置：**src/main/java/com/vemo/App.java:42"));
         assertTrue(markdown.contains("**问题：**A project convention was violated"));
         assertTrue(markdown.contains("**建议：**Use Getter and Setter annotations"));
+        assertTrue(markdown.contains("[代码审查平台](http://10.12.8.132:5173/reviews)"));
         assertTrue(markdown.contains("**总结**"));
     }
 
@@ -129,5 +133,24 @@ class WeComNotificationServiceTest {
         RecordedRequest request = mockWebServer.takeRequest();
         assertTrue(notified);
         assertEquals("/cgi-bin/webhook/send?key=project-key", request.getPath());
+    }
+
+    @Test
+    void shouldRetryWhenWeComReturnsBusinessError() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("{\"errcode\":40058,\"errmsg\":\"invalid webhook\"}"));
+        mockWebServer.enqueue(new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("{\"errcode\":0,\"errmsg\":\"ok\"}"));
+
+        CodeReviewResultEntity result = new CodeReviewResultEntity();
+        result.setSummary("summary");
+        boolean notified = weComNotificationService.notifyReviewResult(
+            1001L, new ReviewNotificationMetadata(), result,
+            Arrays.<CodeReviewCommentEntity>asList(), mockWebServer.url("/send?key=test").toString());
+
+        assertTrue(notified);
+        assertEquals(2, mockWebServer.getRequestCount());
     }
 }

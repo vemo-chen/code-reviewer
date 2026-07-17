@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 public class ReviewRetryService {
 
     private static final int MAX_RETRY_COUNT = 3;
-    private static final int ORPHAN_PENDING_MINUTES = 2;
+    private static final int ORPHAN_PENDING_MINUTES = 10;
 
     private final ReviewTaskStoreMapper codeReviewTaskMapper;
     private final ReviewStateService reviewStateService;

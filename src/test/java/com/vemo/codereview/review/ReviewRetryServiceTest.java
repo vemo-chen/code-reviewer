@@ -88,7 +88,7 @@ class ReviewRetryServiceTest {
     void shouldRecoverOrphanPendingTask() {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(new Date());
-        calendar.add(Calendar.MINUTE, -3);
+        calendar.add(Calendar.MINUTE, -11);
 
         CodeReviewTaskEntity task = new CodeReviewTaskEntity();
         task.setEventId(2L);

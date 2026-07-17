@@ -7,6 +7,15 @@ public class AppProperties {
 
     private Async async = new Async();
     private ReviewContext reviewContext = new ReviewContext();
+    private String platformUrl = "http://10.12.8.132:5173/reviews";
+
+    public String getPlatformUrl() {
+        return platformUrl;
+    }
+
+    public void setPlatformUrl(String platformUrl) {
+        this.platformUrl = platformUrl;
+    }
 
     public Async getAsync() {
         return async;
@@ -25,8 +34,8 @@ public class AppProperties {
     }
 
     public static class Async {
-        private int corePoolSize = 4;
-        private int maxPoolSize = 8;
+        private int corePoolSize = 8;
+        private int maxPoolSize = 16;
         private int queueCapacity = 200;
         private String threadNamePrefix = "review-worker-";
 

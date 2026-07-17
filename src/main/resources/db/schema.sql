@@ -127,6 +127,11 @@ CREATE TABLE IF NOT EXISTS code_review_result (
     output_tokens INT,
     latency_ms BIGINT,
     raw_response TEXT,
+    wecom_notify_status VARCHAR(20),
+    wecom_notify_attempts INT NOT NULL DEFAULT 0,
+    wecom_notified_at DATETIME,
+    wecom_notify_error_code VARCHAR(64),
+    wecom_notify_error_message VARCHAR(512),
     created_at DATETIME NOT NULL,
     KEY idx_review_result_task (task_id)
 );

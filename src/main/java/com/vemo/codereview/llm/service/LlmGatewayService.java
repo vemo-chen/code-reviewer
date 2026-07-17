@@ -49,10 +49,6 @@ public class LlmGatewayService {
     }
 
     private void applyResponseFormat(ChatCompletionRequest request, LlmRuntimeConfig runtimeConfig) {
-        if (!"DEEPSEEK".equalsIgnoreCase(runtimeConfig.getProviderCode())) {
-            request.setResponseFormat(null);
-            return;
-        }
         request.setResponseFormat(new ChatCompletionRequest.ResponseFormat("json_object"));
     }
 

@@ -29,5 +29,10 @@ public class CodeReviewResultEntity {
     private Integer outputTokens;
     private Long latencyMs;
     private String rawResponse;
+    private String wecomNotifyStatus;
+    private Integer wecomNotifyAttempts;
+    private Date wecomNotifiedAt;
+    private String wecomNotifyErrorCode;
+    private String wecomNotifyErrorMessage;
     private Date createdAt;
 }

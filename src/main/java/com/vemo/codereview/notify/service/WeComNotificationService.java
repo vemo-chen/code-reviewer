@@ -1,5 +1,6 @@
 package com.vemo.codereview.notify.service;
 
+import com.vemo.codereview.common.config.AppProperties;
 import com.vemo.codereview.notify.client.WeComWebhookClient;
 import com.vemo.codereview.notify.model.ReviewNotificationMetadata;
 import com.vemo.codereview.notify.model.WeComMarkdownPayload;
@@ -13,9 +14,11 @@ import org.springframework.util.StringUtils;
 public class WeComNotificationService {
 
     private final WeComWebhookClient weComWebhookClient;
+    private final AppProperties appProperties;
 
-    public WeComNotificationService(WeComWebhookClient weComWebhookClient) {
+    public WeComNotificationService(WeComWebhookClient weComWebhookClient, AppProperties appProperties) {
         this.weComWebhookClient = weComWebhookClient;
+        this.appProperties = appProperties;
     }
 
     public boolean notifyReviewResult(
@@ -94,6 +97,10 @@ public class WeComNotificationService {
                 .append(metadata.getCommitCount() == null ? 0 : metadata.getCommitCount())
                 .append(" commits)</font>\n");
         }
+        if (metadata != null && StringUtils.hasText(metadata.getGitlabUrl())) {
+            builder.append("> GitLab：[打开审查对象](")
+                .append(metadata.getGitlabUrl()).append(")\n");
+        }
         builder.append("> 风险等级：").append(formatSeverity(result.getRiskLevel())).append("\n");
         builder.append("> 最终得分：<font color=\"comment\">")
             .append(safeScore(resolveFinalScore(result))).append("</font>\n");
@@ -137,7 +144,7 @@ public class WeComNotificationService {
                     .append(comments.size() - limit)
                     .append(" 条问题。");
             }
-            String platformUrl = "http://localhost:5173/dashboard";
+            String platformUrl = appProperties.getPlatformUrl();
             builder.append("请到[代码审查平台](")
                 .append(platformUrl)
                 .append(")查看并操作。\n");

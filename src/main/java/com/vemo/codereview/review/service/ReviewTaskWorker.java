@@ -21,6 +21,7 @@ import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewCommentStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
+import com.vemo.codereview.review.mapper.ReviewResultStoreMapper;
 import com.vemo.codereview.review.model.ReviewExecutionContext;
 import com.vemo.codereview.review.model.ReviewFixStatus;
 import com.vemo.codereview.review.model.ReviewPromptPayload;
@@ -43,6 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Service
 public class ReviewTaskWorker {
@@ -50,6 +52,8 @@ public class ReviewTaskWorker {
     private static final Logger log = LoggerFactory.getLogger(ReviewTaskWorker.class);
 
     private final ReviewTaskStoreMapper codeReviewTaskMapper;
+    @Autowired
+    private ReviewResultStoreMapper codeReviewResultMapper;
     private final ReviewEventStoreMapper reviewEventStoreMapper;
     private final GitLabReviewTargetService gitLabReviewTargetService;
     private final PromptBuilderService promptBuilderService;
@@ -131,10 +135,18 @@ public class ReviewTaskWorker {
         log.info("review task loaded. taskId={}, taskType={}, status={}, elapsedMs={}",
             task.getId(), task.getTaskType(), task.getStatus(), elapsedMs(workerStartNs));
         if (!canStart(task.getStatus())) {
-            throw new DomainException("TASK_STATE_INVALID", "Review task cannot start from status: " + task.getStatus());
+            log.info("review task skipped because it is no longer runnable. taskId={}, status={}",
+                task.getId(), task.getStatus());
+            return null;
         }
 
-        reviewStateService.markTaskRunning(task);
+        if (!reviewStateService.claimTaskRunning(task.getId())) {
+            log.info("review task claim skipped because another worker owns it. taskId={}, status={}",
+                task.getId(), task.getStatus());
+            return null;
+        }
+        task.setStatus(ReviewTaskLifecycle.RUNNING.name());
+        task.setStartedAt(new Date());
         log.info("review task marked running. taskId={}, elapsedMs={}", task.getId(), elapsedMs(workerStartNs));
 
         CodeReviewEventEntity startingEvent = task.getEventId() == null ? null
@@ -200,13 +212,17 @@ public class ReviewTaskWorker {
             commentWrapper.eq("result_id", persistedResult.getId());
             List<CodeReviewCommentEntity> comments = codeReviewCommentMapper.selectList(commentWrapper);
             if (shouldNotifyWeCom(projectConfig)) {
-                weComNotificationService.notifyReviewResult(
-                    task.getProjectId(),
-                    buildNotificationMetadata(task, context),
-                    persistedResult,
-                    comments,
-                    projectConfig == null ? null : projectConfig.getWecomWebhookUrl()
-                );
+                markWeComPending(persistedResult);
+                try {
+                    weComNotificationService.notifyReviewResult(
+                        task.getProjectId(), buildNotificationMetadata(task, context, projectConfig), persistedResult, comments,
+                        projectConfig.getWecomWebhookUrl());
+                    markWeComSuccess(persistedResult);
+                } catch (RuntimeException ex) {
+                    markWeComFailure(persistedResult, ex);
+                    log.warn("WeCom notification failed without changing review task status. taskId={}, resultId={}, message={}",
+                        task.getId(), persistedResult.getId(), ex.getMessage());
+                }
             }
         } catch (RuntimeException ex) {
             log.warn("review task failed. taskId={}, elapsedMs={}, message={}",
@@ -329,11 +345,16 @@ public class ReviewTaskWorker {
         }
     }
 
-    private ReviewNotificationMetadata buildNotificationMetadata(CodeReviewTaskEntity task, ReviewExecutionContext context) {
+    private ReviewNotificationMetadata buildNotificationMetadata(CodeReviewTaskEntity task,
+                                                                 ReviewExecutionContext context,
+                                                                 ProjectProfileEntity projectConfig) {
         ReviewNotificationMetadata metadata = new ReviewNotificationMetadata();
         metadata.setReviewTargetType(task.getTaskType());
         metadata.setTargetId(task.getTargetId());
         metadata.setSubmitMessage(task.getTargetTitle());
+        if (projectConfig != null) {
+            metadata.setGitlabUrl(buildGitLabTargetUrl(projectConfig.getGitlabProjectUrl(), task, context));
+        }
         if (context != null && "push".equals(context.getTargetType())) {
             metadata.setPushBranch(context.getPushBranch());
             metadata.setBeforeSha(context.getBeforeSha());
@@ -367,6 +388,18 @@ public class ReviewTaskWorker {
             metadata.setSubmitter(event.getOperatorName());
         }
         return metadata;
+    }
+
+    private String buildGitLabTargetUrl(String projectUrl, CodeReviewTaskEntity task,
+                                        ReviewExecutionContext context) {
+        if (!StringUtils.hasText(projectUrl) || task == null) return null;
+        String base = projectUrl.trim().replaceAll("/+$", "");
+        if ("MR_REVIEW".equalsIgnoreCase(task.getTaskType())) {
+            return base + "/merge_requests/" + task.getTargetId();
+        }
+        String sha = context != null && StringUtils.hasText(context.getAfterSha())
+            ? context.getAfterSha() : task.getTargetId();
+        return StringUtils.hasText(sha) ? base + "/commit/" + sha : null;
     }
 
     private String resolveSubmitter(GitLabWebhookPayload payload, CodeReviewEventEntity event) {
@@ -502,6 +535,44 @@ public class ReviewTaskWorker {
 
     private boolean shouldNotifyWeCom(ProjectProfileEntity projectConfig) {
         return projectConfig != null && Boolean.TRUE.equals(projectConfig.getWecomNotifyEnabled());
+    }
+
+    private void markWeComPending(CodeReviewResultEntity result) {
+        if (codeReviewResultMapper == null) return;
+        try {
+            result.setWecomNotifyStatus("PENDING");
+            result.setWecomNotifyAttempts((result.getWecomNotifyAttempts() == null ? 0 : result.getWecomNotifyAttempts()) + 1);
+            result.setWecomNotifyErrorCode(null);
+            result.setWecomNotifyErrorMessage(null);
+            codeReviewResultMapper.updateById(result);
+        } catch (RuntimeException ex) {
+            log.warn("Failed to persist WeCom pending status. resultId={}, message={}", result.getId(), ex.getMessage());
+        }
+    }
+
+    private void markWeComSuccess(CodeReviewResultEntity result) {
+        if (codeReviewResultMapper == null) return;
+        try {
+            result.setWecomNotifyStatus("SUCCESS");
+            result.setWecomNotifiedAt(new Date());
+            codeReviewResultMapper.updateById(result);
+        } catch (RuntimeException ex) {
+            log.warn("Failed to persist WeCom success status. resultId={}, message={}", result.getId(), ex.getMessage());
+        }
+    }
+
+    private void markWeComFailure(CodeReviewResultEntity result, RuntimeException ex) {
+        if (codeReviewResultMapper == null) return;
+        try {
+            result.setWecomNotifyStatus("FAILED");
+            result.setWecomNotifyErrorCode(ex instanceof DomainException
+                ? ((DomainException) ex).getCode() : "WECOM_PUSH_ERROR");
+            result.setWecomNotifyErrorMessage(ex.getMessage());
+            codeReviewResultMapper.updateById(result);
+        } catch (RuntimeException statusEx) {
+            log.warn("Failed to persist WeCom failure status. resultId={}, message={}",
+                result.getId(), statusEx.getMessage());
+        }
     }
 
     private long elapsedMs(long startNs) {

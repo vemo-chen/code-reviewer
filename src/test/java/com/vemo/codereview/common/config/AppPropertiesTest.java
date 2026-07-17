@@ -20,6 +20,7 @@ import org.springframework.test.context.TestPropertySource;
     "code-reviewer.app.async.max-pool-size=6",
     "code-reviewer.app.async.queue-capacity=50",
     "code-reviewer.app.async.thread-name-prefix=test-review-",
+    "code-reviewer.app.platform-url=http://10.12.8.132:5173/reviews",
     "code-reviewer.gitlab.connect-timeout-ms=7000",
     "code-reviewer.gitlab.read-timeout-ms=12000"
 })
@@ -44,6 +45,7 @@ class AppPropertiesTest {
         assertEquals(2, appProperties.getAsync().getCorePoolSize());
         assertEquals(6, appProperties.getAsync().getMaxPoolSize());
         assertEquals("test-review-", appProperties.getAsync().getThreadNamePrefix());
+        assertEquals("http://10.12.8.132:5173/reviews", appProperties.getPlatformUrl());
 
         assertEquals(7000, gitLabProperties.getConnectTimeoutMs());
         assertEquals(12000, gitLabProperties.getReadTimeoutMs());

@@ -17,4 +17,5 @@ public class ReviewNotificationMetadata {
     private String beforeSha;
     private String afterSha;
     private Integer commitCount;
+    private String gitlabUrl;
 }

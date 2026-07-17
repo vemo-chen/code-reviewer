@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -101,6 +102,7 @@ class ProjectScopedReviewFlowTest {
 
     @BeforeEach
     void setUp() {
+        when(reviewStateService.claimTaskRunning(anyLong())).thenReturn(true);
         reviewTaskWorker = new ReviewTaskWorker(
             reviewTaskStoreMapper,
             reviewEventStoreMapper,

@@ -23,9 +23,10 @@ mybatis-plus:
 
 code-reviewer:
   app:
+    platform-url: http://10.12.8.132:5173/reviews
     async:
-      core-pool-size: 4
-      max-pool-size: 8
+      core-pool-size: 8
+      max-pool-size: 16
       queue-capacity: 200
       thread-name-prefix: review-worker-
   gitlab:

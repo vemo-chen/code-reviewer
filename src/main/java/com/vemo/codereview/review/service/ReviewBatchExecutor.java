@@ -47,7 +47,7 @@ public class ReviewBatchExecutor {
             return Collections.singletonList(executeOnce(taskId, context, batch, config,
                 ReviewPromptMode.NORMAL, batchPath, splitDepth));
         } catch (DomainException ex) {
-            if (!"REVIEW_RESULT_TRUNCATED".equals(ex.getCode())) throw ex;
+            if (!isSplittableFailure(ex)) throw ex;
             if (batch.getUnits().size() > 1) {
                 ReviewExecutionBatch.Split split = batch.splitHalf();
                 List<ReviewBatchOutput> result = new ArrayList<ReviewBatchOutput>();
@@ -59,13 +59,21 @@ public class ReviewBatchExecutor {
                 return Collections.singletonList(executeOnce(taskId, context, batch, config,
                     ReviewPromptMode.COMPACT, batchPath + ".compact", splitDepth));
             } catch (DomainException compact) {
-                if ("REVIEW_RESULT_TRUNCATED".equals(compact.getCode())) {
+                if (isSplittableFailure(compact)) {
                     throw new DomainException("REVIEW_SINGLE_UNIT_OUTPUT_TRUNCATED",
                         "Single review unit exceeded the configured model output limit");
                 }
                 throw compact;
             }
         }
+    }
+
+    private boolean isSplittableFailure(DomainException ex) {
+        if ("REVIEW_RESULT_TRUNCATED".equals(ex.getCode())) return true;
+        if (!"LLM_API_ERROR".equals(ex.getCode())) return false;
+        String message = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
+        return message.contains("context") || message.contains("token") || message.contains("prompt")
+            || message.contains("input") || message.contains("length") || message.contains("too large");
     }
 
     private ReviewBatchOutput executeOnce(Long taskId, ReviewExecutionContext context, ReviewExecutionBatch batch,

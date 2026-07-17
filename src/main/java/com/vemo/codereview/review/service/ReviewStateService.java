@@ -1,5 +1,6 @@
 package com.vemo.codereview.review.service;
 
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
@@ -61,6 +62,19 @@ public class ReviewStateService {
             task.setStartedAt(new Date());
         }
         codeReviewTaskMapper.updateById(task);
+    }
+
+    public boolean claimTaskRunning(Long taskId) {
+        if (taskId == null) return false;
+        Date now = new Date();
+        UpdateWrapper<CodeReviewTaskEntity> wrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        wrapper.eq("id", taskId)
+            .in("status", Arrays.asList(ReviewTaskLifecycle.PENDING.name(), ReviewTaskLifecycle.FAILED.name()))
+            .set("status", ReviewTaskLifecycle.RUNNING.name())
+            .set("next_retry_at", null)
+            .set("started_at", now)
+            .set("updated_at", now);
+        return codeReviewTaskMapper.update(null, wrapper) == 1;
     }
 
     public void markTaskSuccess(CodeReviewTaskEntity task) {

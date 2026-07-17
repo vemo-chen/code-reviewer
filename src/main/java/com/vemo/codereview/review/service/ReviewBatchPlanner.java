@@ -19,20 +19,14 @@ public class ReviewBatchPlanner {
         if (maxOutputTokens == null || maxOutputTokens <= 0) {
             throw new DomainException("LLM_MAX_TOKENS_INVALID", "Model maxTokens must be positive");
         }
-        int usable = (int) Math.floor(maxOutputTokens * 0.75d);
         List<ReviewExecutionBatch> result = new ArrayList<ReviewExecutionBatch>();
-        ReviewExecutionBatch current = new ReviewExecutionBatch();
         if (units == null) return result;
+        ReviewExecutionBatch batch = new ReviewExecutionBatch();
         for (ReviewSemanticUnit original : units) {
             ReviewSemanticUnit unit = truncateIfNecessary(original, budgetService.maxTotalChars());
-            if (!current.canFit(unit, budgetService.maxFiles(), budgetService.maxTotalChars(),
-                budgetService.maxSnippetsPerFile(), usable)) {
-                if (!current.isEmpty()) result.add(current);
-                current = new ReviewExecutionBatch();
-            }
-            current.add(unit);
+            batch.add(unit);
         }
-        if (!current.isEmpty()) result.add(current);
+        if (!batch.isEmpty()) result.add(batch);
         return result;
     }
 
