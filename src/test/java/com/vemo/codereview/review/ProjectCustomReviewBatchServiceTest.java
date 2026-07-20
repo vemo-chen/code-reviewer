@@ -78,9 +78,6 @@ class ProjectCustomReviewBatchServiceTest {
     @MockBean
     private com.vemo.codereview.project.service.GitLabProjectResolver gitLabProjectResolver;
 
-    @MockBean
-    private com.vemo.codereview.review.service.ReviewTaskDispatcher reviewTaskDispatcher;
-
     @BeforeEach
     void setUp() {
         reviewBatchTaskRelStoreMapper.delete(null);
@@ -161,7 +158,6 @@ class ProjectCustomReviewBatchServiceTest {
         assertTrue(createdEvent.getPayloadJson().contains("\"user_name\":\"author-sha-c\""));
         assertNotNull(createdEvent.getSubmitTime());
 
-        verify(reviewTaskDispatcher, times(1)).dispatch(createdTask.getId());
     }
 
     @Test
@@ -231,7 +227,6 @@ class ProjectCustomReviewBatchServiceTest {
         List<CodeReviewTaskEntity> allTasks = reviewTaskStoreMapper.selectList(new QueryWrapper<CodeReviewTaskEntity>().eq("project_id", project.getId()));
         assertEquals(4, allTasks.size());
 
-        verify(reviewTaskDispatcher, times(3)).dispatch(any(Long.class));
     }
 
     @Test
@@ -271,7 +266,6 @@ class ProjectCustomReviewBatchServiceTest {
             any(),
             any(),
             eq(project.getGitlabWebhookToken()));
-        verify(reviewTaskDispatcher, times(1)).dispatch(any(Long.class));
     }
 
     @Test

@@ -12,9 +12,12 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 public class ReviewStateService {
+
+    private static final int MAX_RETRY_COUNT = 3;
 
     private final ReviewEventStoreMapper codeReviewEventMapper;
     private final ReviewTaskStoreMapper codeReviewTaskMapper;
@@ -65,13 +68,25 @@ public class ReviewStateService {
     }
 
     public boolean claimTaskRunning(Long taskId) {
+        return claimTaskRunning(taskId, java.util.UUID.randomUUID().toString());
+    }
+
+    public boolean claimTaskRunning(Long taskId, String executionToken) {
         if (taskId == null) return false;
+        if (!StringUtils.hasText(executionToken)) return false;
         Date now = new Date();
         UpdateWrapper<CodeReviewTaskEntity> wrapper = new UpdateWrapper<CodeReviewTaskEntity>();
         wrapper.eq("id", taskId)
-            .in("status", Arrays.asList(ReviewTaskLifecycle.PENDING.name(), ReviewTaskLifecycle.FAILED.name()))
+            .and(statusWrapper -> statusWrapper
+                .eq("status", ReviewTaskLifecycle.PENDING.name())
+                .or(failedWrapper -> failedWrapper
+                    .eq("status", ReviewTaskLifecycle.FAILED.name())
+                    .le("retry_count", MAX_RETRY_COUNT)
+                    .isNotNull("next_retry_at")
+                    .le("next_retry_at", now)))
             .set("status", ReviewTaskLifecycle.RUNNING.name())
             .set("next_retry_at", null)
+            .set("execution_token", executionToken)
             .set("started_at", now)
             .set("updated_at", now);
         return codeReviewTaskMapper.update(null, wrapper) == 1;
@@ -79,24 +94,97 @@ public class ReviewStateService {
 
     public void markTaskSuccess(CodeReviewTaskEntity task) {
         transitionTask(task, ReviewTaskLifecycle.SUCCESS, Arrays.asList(ReviewTaskLifecycle.RUNNING));
+        Date now = new Date();
+        UpdateWrapper<CodeReviewTaskEntity> wrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        wrapper.eq("id", task.getId())
+            .set("status", ReviewTaskLifecycle.SUCCESS.name())
+            .set("error_code", null)
+            .set("error_message", null)
+            .set("finished_at", now)
+            .set("next_retry_at", null)
+            .set("execution_token", null)
+            .set("updated_at", now);
+        codeReviewTaskMapper.update(null, wrapper);
         task.setErrorCode(null);
         task.setErrorMessage(null);
-        task.setFinishedAt(new Date());
+        task.setFinishedAt(now);
         task.setNextRetryAt(null);
-        task.setUpdatedAt(new Date());
-        codeReviewTaskMapper.updateById(task);
+        task.setExecutionToken(null);
+        task.setUpdatedAt(now);
     }
 
     public void markTaskFailed(CodeReviewTaskEntity task, int retryCount, Date nextRetryAt,
                                String errorCode, String errorMessage) {
         transitionTask(task, ReviewTaskLifecycle.FAILED, Arrays.asList(ReviewTaskLifecycle.RUNNING));
+        Date now = new Date();
+        UpdateWrapper<CodeReviewTaskEntity> wrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        wrapper.eq("id", task.getId())
+            .set("status", ReviewTaskLifecycle.FAILED.name())
+            .set("retry_count", retryCount)
+            .set("next_retry_at", nextRetryAt)
+            .set("execution_token", null)
+            .set("error_code", errorCode)
+            .set("error_message", errorMessage)
+            .set("finished_at", now)
+            .set("updated_at", now);
+        codeReviewTaskMapper.update(null, wrapper);
         task.setRetryCount(retryCount);
         task.setNextRetryAt(nextRetryAt);
+        task.setExecutionToken(null);
         task.setErrorCode(errorCode);
         task.setErrorMessage(errorMessage);
-        task.setFinishedAt(new Date());
-        task.setUpdatedAt(new Date());
-        codeReviewTaskMapper.updateById(task);
+        task.setFinishedAt(now);
+        task.setUpdatedAt(now);
+    }
+
+    public boolean markTaskFailedIfCurrent(CodeReviewTaskEntity task, String expectedExecutionToken, int retryCount,
+                                           Date nextRetryAt, String errorCode, String errorMessage) {
+        if (task == null || task.getId() == null || !StringUtils.hasText(expectedExecutionToken)) {
+            return false;
+        }
+        Date now = new Date();
+        UpdateWrapper<CodeReviewTaskEntity> wrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        wrapper.eq("id", task.getId())
+            .eq("status", ReviewTaskLifecycle.RUNNING.name())
+            .eq("execution_token", expectedExecutionToken)
+            .set("status", ReviewTaskLifecycle.FAILED.name())
+            .set("retry_count", retryCount)
+            .set("next_retry_at", nextRetryAt)
+            .set("execution_token", null)
+            .set("error_code", errorCode)
+            .set("error_message", errorMessage)
+            .set("finished_at", now)
+            .set("updated_at", now);
+        boolean updated = codeReviewTaskMapper.update(null, wrapper) == 1;
+        if (updated) {
+            task.setStatus(ReviewTaskLifecycle.FAILED.name());
+            task.setRetryCount(retryCount);
+            task.setNextRetryAt(nextRetryAt);
+            task.setExecutionToken(null);
+            task.setErrorCode(errorCode);
+            task.setErrorMessage(errorMessage);
+            task.setFinishedAt(now);
+            task.setUpdatedAt(now);
+        }
+        return updated;
+    }
+
+    public boolean interruptRunningTask(Long taskId) {
+        if (taskId == null) {
+            return false;
+        }
+        Date now = new Date();
+        UpdateWrapper<CodeReviewTaskEntity> wrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        wrapper.eq("id", taskId)
+            .eq("status", ReviewTaskLifecycle.RUNNING.name())
+            .set("status", ReviewTaskLifecycle.FAILED.name())
+            .set("next_retry_at", null)
+            .set("execution_token", null)
+            .set("error_code", "USER_INTERRUPTED")
+            .set("error_message", "用户停止审查")
+            .set("finished_at", now)
+            .set("updated_at", now);
+        return codeReviewTaskMapper.update(null, wrapper) == 1;
     }
 
     private void transitionEvent(CodeReviewEventEntity event, ReviewEventLifecycle target,

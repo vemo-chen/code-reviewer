@@ -352,7 +352,6 @@ public class ProjectCustomReviewBatchService {
         task.setUpdatedAt(now);
         codeReviewTaskMapper.insert(task);
         reviewStateService.markEventTaskCreated(event);
-        reviewTaskManualRetryService.dispatch(task.getId());
         return task;
     }
 

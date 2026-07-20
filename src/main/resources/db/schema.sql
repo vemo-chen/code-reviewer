@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS code_review_task (
     fix_review_comment VARCHAR(1000),
     retry_count INT NOT NULL DEFAULT 0,
     next_retry_at DATETIME,
+    execution_token VARCHAR(64),
     error_code VARCHAR(64),
     error_message VARCHAR(512),
     started_at DATETIME,

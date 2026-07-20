@@ -15,7 +15,6 @@ import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
 import com.vemo.codereview.review.model.ReviewEventLifecycle;
 import com.vemo.codereview.review.model.ReviewTaskLifecycle;
 import com.vemo.codereview.review.service.ReviewStateService;
-import com.vemo.codereview.review.service.ReviewTaskDispatcher;
 import com.vemo.codereview.webhook.model.GitLabWebhookPayload;
 import com.vemo.codereview.webhook.model.MergePushCorrelationResult;
 import com.vemo.codereview.webhook.model.MergePushDecision;
@@ -40,7 +39,6 @@ public class GitLabWebhookHandlerService {
     private final ReviewEventStoreMapper codeReviewEventMapper;
     private final ReviewTaskStoreMapper codeReviewTaskMapper;
     private final ReviewResultStoreMapper codeReviewResultMapper;
-    private final ReviewTaskDispatcher reviewTaskDispatcher;
     private final ReviewStateService reviewStateService;
     private final ProjectConfigService projectConfigService;
     private final MergeRequestEventService mergeRequestEventService;
@@ -53,7 +51,6 @@ public class GitLabWebhookHandlerService {
         ReviewEventStoreMapper codeReviewEventMapper,
         ReviewTaskStoreMapper codeReviewTaskMapper,
         ReviewResultStoreMapper codeReviewResultMapper,
-        ReviewTaskDispatcher reviewTaskDispatcher,
         ReviewStateService reviewStateService,
         ProjectConfigService projectConfigService,
         MergeRequestEventService mergeRequestEventService,
@@ -64,7 +61,6 @@ public class GitLabWebhookHandlerService {
         this.codeReviewEventMapper = codeReviewEventMapper;
         this.codeReviewTaskMapper = codeReviewTaskMapper;
         this.codeReviewResultMapper = codeReviewResultMapper;
-        this.reviewTaskDispatcher = reviewTaskDispatcher;
         this.reviewStateService = reviewStateService;
         this.projectConfigService = projectConfigService;
         this.mergeRequestEventService = mergeRequestEventService;
@@ -264,8 +260,8 @@ public class GitLabWebhookHandlerService {
         reviewStateService.markEventTaskCreated(eventEntity);
         log.info("review task created. eventId={}, taskId={}, taskType={}, elapsedMs={}",
             eventEntity.getId(), taskEntity.getId(), taskType, elapsedMs(webhookStartNs));
-        reviewTaskDispatcher.dispatch(taskEntity.getId());
-        log.info("review task dispatched. taskId={}, elapsedMs={}", taskEntity.getId(), elapsedMs(webhookStartNs));
+        log.info("review task persisted for database polling. taskId={}, elapsedMs={}",
+            taskEntity.getId(), elapsedMs(webhookStartNs));
     }
 
     private CodeReviewEventEntity buildEventEntity(StandardReviewEvent event, Date now) {

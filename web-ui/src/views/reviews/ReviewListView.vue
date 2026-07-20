@@ -123,7 +123,7 @@
             {{ formatDateTime(row.submitTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="170" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <div class="action-group">
               <el-button link type="warning" :loading="detailLoadingId === row.taskId" @click="openDetail(row)">
@@ -137,6 +137,15 @@
                 @click="retryTask(row)"
               >
                 重试
+              </el-button>
+              <el-button
+                link
+                type="danger"
+                :disabled="!canInterrupt(row.status)"
+                :loading="interruptLoadingId === row.taskId"
+                @click="interruptTask(row)"
+              >
+                停止
               </el-button>
             </div>
           </template>
@@ -387,6 +396,7 @@ import {
   fetchReviewSubmitters,
   fetchReviewTaskDetail,
   fetchReviewTasks,
+  interruptReviewTask,
   rejectFixReview,
   retryReviewTask,
   submitFixReview,
@@ -503,6 +513,7 @@ const reviewTableRef = ref<any>(null);
 const loading = ref(false);
 const detailLoadingId = ref<number | null>(null);
 const retryLoadingId = ref<number | null>(null);
+const interruptLoadingId = ref<number | null>(null);
 const batchRetryLoading = ref(false);
 const detailVisible = ref(false);
 const flowDialogVisible = ref(false);
@@ -684,6 +695,11 @@ const canManualRetry = (status: string | null | undefined) => {
   return normalized === "FAILED" || normalized === "SUCCESS";
 };
 
+const canInterrupt = (status: string | null | undefined) => {
+  const normalized = (status || "").toUpperCase();
+  return normalized === "RUNNING";
+};
+
 const canSubmitFix = (task: ReviewTaskDetail | null) => {
   if (!task) {
     return false;
@@ -718,6 +734,18 @@ const confirmRetry = (count: number) =>
     }
   );
 
+const confirmInterrupt = () =>
+  ElMessageBox.confirm(
+    "停止后当前大模型请求不会被强制停止，但返回结果会被丢弃，任务会标记为失败，是否继续？",
+    "确认停止",
+    {
+      type: "warning",
+      confirmButtonText: "确认停止",
+      cancelButtonText: "取消",
+      distinguishCancelAndClose: true
+    }
+  );
+
 const retryTask = async (row: ReviewRecordItem) => {
   if (!canManualRetry(row.status)) {
     return;
@@ -739,6 +767,30 @@ const retryTask = async (row: ReviewRecordItem) => {
     ElMessage.error("任务重试失败");
   } finally {
     retryLoadingId.value = null;
+  }
+};
+
+const interruptTask = async (row: ReviewRecordItem) => {
+  if (!canInterrupt(row.status)) {
+    return;
+  }
+  try {
+    await confirmInterrupt();
+  } catch (error) {
+    return;
+  }
+  interruptLoadingId.value = row.taskId;
+  try {
+    await interruptReviewTask(row.taskId);
+    ElMessage.success("任务已停止");
+    await loadRecords();
+    if (detailVisible.value && detail.value && detail.value.taskId === row.taskId) {
+      await loadDetailBundle(row.taskId);
+    }
+  } catch (error) {
+    ElMessage.error("任务停止失败");
+  } finally {
+    interruptLoadingId.value = null;
   }
 };
 

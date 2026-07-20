@@ -39,6 +39,7 @@ class ReviewScoreServiceTest {
 
         assertEquals(Integer.valueOf(10), summary.getDeductionScore());
         assertEquals(Integer.valueOf(80), summary.getFinalScore());
-        assertEquals("Suggested score: 90; Deducted 6 points for 1 HIGH hard-rule issue(s); Deducted 4 points for 1 MEDIUM hard-rule issue(s); Final score: 80", summary.getScoreReason());
+        assertEquals("模型建议分: 90；命中 1 个高级项目硬性规则问题，扣 6 分；命中 1 个中级项目硬性规则问题，扣 4 分；最终得分: 80",
+            summary.getScoreReason());
     }
 }

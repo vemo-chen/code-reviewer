@@ -2,8 +2,7 @@ package com.vemo.codereview.webhook;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,14 +14,12 @@ import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
-import com.vemo.codereview.review.service.ReviewTaskDispatcher;
 import java.util.Date;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.jdbc.Sql;
@@ -39,8 +36,6 @@ import org.springframework.test.web.servlet.MockMvc;
 @Sql(scripts = "/db/schema.sql")
 class GitLabMergeRequestLifecycleTest {
 
-    @MockBean
-    private ReviewTaskDispatcher reviewTaskDispatcher;
     @Autowired
     private MockMvc mockMvc;
     @Autowired
@@ -75,6 +70,11 @@ class GitLabMergeRequestLifecycleTest {
     @Test
     void shouldReuseEventAndTaskAcrossMergeRequestLifecycle() throws Exception {
         deliver("open", "opened", "c1", null, "creator", "Creator");
+        CodeReviewTaskEntity runningTask = taskMapper.selectOne(new QueryWrapper<CodeReviewTaskEntity>());
+        runningTask.setStatus("RUNNING");
+        runningTask.setExecutionToken("running-token");
+        taskMapper.updateById(runningTask);
+
         deliver("update", "opened", "c2", null, "editor", "Editor");
         deliver("merge", "merged", "c2", "merge-sha", "merger", "Merger");
 
@@ -91,7 +91,7 @@ class GitLabMergeRequestLifecycleTest {
         assertEquals("c2", event.getMrHeadSha());
         assertEquals("merge-sha", event.getMergedSha());
         assertEquals("PENDING", task.getStatus());
-        verify(reviewTaskDispatcher, times(2)).dispatch(task.getId());
+        assertNull(task.getExecutionToken());
     }
 
     private void deliver(String action, String state, String head, String mergedSha,

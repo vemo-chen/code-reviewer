@@ -40,6 +40,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Collections;
 import java.util.TimeZone;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -127,6 +128,18 @@ public class ReviewTaskWorker {
     }
 
     public ReviewExecutionContext process(Long taskId) {
+        return process(taskId, true, UUID.randomUUID().toString());
+    }
+
+    public ReviewExecutionContext processClaimed(Long taskId) {
+        return process(taskId, false, null);
+    }
+
+    public ReviewExecutionContext processClaimed(Long taskId, String executionToken) {
+        return process(taskId, false, executionToken);
+    }
+
+    private ReviewExecutionContext process(Long taskId, boolean claimBeforeStart, String executionToken) {
         long workerStartNs = System.nanoTime();
         CodeReviewTaskEntity task = codeReviewTaskMapper.selectById(taskId);
         if (task == null) {
@@ -134,25 +147,36 @@ public class ReviewTaskWorker {
         }
         log.info("review task loaded. taskId={}, taskType={}, status={}, elapsedMs={}",
             task.getId(), task.getTaskType(), task.getStatus(), elapsedMs(workerStartNs));
-        if (!canStart(task.getStatus())) {
-            log.info("review task skipped because it is no longer runnable. taskId={}, status={}",
-                task.getId(), task.getStatus());
-            return null;
-        }
+        if (claimBeforeStart) {
+            if (!canStart(task.getStatus())) {
+                log.info("review task skipped because it is no longer runnable. taskId={}, status={}",
+                    task.getId(), task.getStatus());
+                return null;
+            }
 
-        if (!reviewStateService.claimTaskRunning(task.getId())) {
-            log.info("review task claim skipped because another worker owns it. taskId={}, status={}",
+            if (!reviewStateService.claimTaskRunning(task.getId(), executionToken)) {
+                log.info("review task claim skipped because another worker owns it. taskId={}, status={}",
+                    task.getId(), task.getStatus());
+                return null;
+            }
+            task.setStatus(ReviewTaskLifecycle.RUNNING.name());
+            task.setStartedAt(new Date());
+            task.setExecutionToken(executionToken);
+            log.info("review task marked running. taskId={}, elapsedMs={}", task.getId(), elapsedMs(workerStartNs));
+        } else if (!ReviewTaskLifecycle.RUNNING.name().equals(task.getStatus())) {
+            log.info("review task skipped because claimed task is no longer running. taskId={}, status={}",
                 task.getId(), task.getStatus());
             return null;
+        } else if (executionToken != null && !executionToken.equals(task.getExecutionToken())) {
+            log.info("review task skipped because execution token changed. taskId={}", task.getId());
+            return null;
         }
-        task.setStatus(ReviewTaskLifecycle.RUNNING.name());
-        task.setStartedAt(new Date());
-        log.info("review task marked running. taskId={}, elapsedMs={}", task.getId(), elapsedMs(workerStartNs));
 
         CodeReviewEventEntity startingEvent = task.getEventId() == null ? null
             : reviewEventStoreMapper.selectById(task.getEventId());
         String expectedMrHeadSha = startingEvent == null ? null : startingEvent.getMrHeadSha();
         boolean completedAtomically = false;
+        boolean markEventProcessedAfterCompletion = false;
         ReviewExecutionContext context;
         try {
             ProjectProfileEntity projectConfig = projectConfigService.findById(task.getProjectId());
@@ -172,8 +196,27 @@ public class ReviewTaskWorker {
                 ChatCompletionResponse llmResponse = llmGatewayService.review(task.getProjectId(), reviewPrompt);
                 ReviewSummary reviewSummary = reviewResultParser.parse(llmResponse);
                 reviewScoreService.applyScores(reviewSummary);
-                persistedResult = reviewResultPersistenceService.persist(task.getId(), "openai-compatible",
-                    llmResponse.getModel(), reviewSummary, llmResponse, context);
+                if ("MR_REVIEW".equals(task.getTaskType())) {
+                    MrReviewCompletion completion = reviewResultPersistenceService.completeMrReview(
+                        task.getId(), expectedMrHeadSha, executionToken, "openai-compatible",
+                        llmResponse.getModel(), reviewSummary, llmResponse, context);
+                    if (!completion.isCompleted()) {
+                        log.info("review task result stale. taskId={}, expectedHead={}", task.getId(), expectedMrHeadSha);
+                        return context;
+                    }
+                    completedAtomically = true;
+                    persistedResult = completion.getResult();
+                } else {
+                    persistedResult = reviewResultPersistenceService.completeReview(task.getId(), executionToken, "openai-compatible",
+                        llmResponse.getModel(), reviewSummary, llmResponse, context);
+                    if (persistedResult == null) {
+                        log.info("review task result ignored because execution token is no longer current. taskId={}",
+                            task.getId());
+                        return context;
+                    }
+                    completedAtomically = true;
+                    markEventProcessedAfterCompletion = true;
+                }
             } else {
                 List<ReviewSemanticUnit> units = reviewSemanticUnitPlanner.plan(context,
                     projectConfig == null || !Boolean.FALSE.equals(projectConfig.getReviewContextEnabled()));
@@ -188,7 +231,7 @@ public class ReviewTaskWorker {
                 }
                 if ("MR_REVIEW".equals(task.getTaskType())) {
                     MrReviewCompletion completion = reviewResultPersistenceService.completeMrReview(
-                        task.getId(), expectedMrHeadSha, aggregate, context);
+                        task.getId(), expectedMrHeadSha, executionToken, aggregate, context);
                     if (!completion.isCompleted()) {
                         log.info("review task result stale. taskId={}, expectedHead={}", task.getId(), expectedMrHeadSha);
                         return context;
@@ -196,7 +239,15 @@ public class ReviewTaskWorker {
                     completedAtomically = true;
                     persistedResult = completion.getResult();
                 } else {
-                    persistedResult = reviewResultPersistenceService.persistAggregated(task.getId(), aggregate, context);
+                    persistedResult = reviewResultPersistenceService.completeAggregatedReview(
+                        task.getId(), executionToken, aggregate, context);
+                    if (persistedResult == null) {
+                        log.info("review task result ignored because execution token is no longer current. taskId={}",
+                            task.getId());
+                        return context;
+                    }
+                    completedAtomically = true;
+                    markEventProcessedAfterCompletion = true;
                 }
             }
             log.info("review result persisted. taskId={}, resultId={}, elapsedMs={}",
@@ -227,11 +278,14 @@ public class ReviewTaskWorker {
         } catch (RuntimeException ex) {
             log.warn("review task failed. taskId={}, elapsedMs={}, message={}",
                 task.getId(), elapsedMs(workerStartNs), ex.getMessage());
-            reviewRetryService.handleFailure(task, ex);
+            reviewRetryService.handleFailure(task, executionToken, ex);
             throw ex;
         }
 
         if (completedAtomically) {
+            if (markEventProcessedAfterCompletion) {
+                markEventProcessedSafely(task.getEventId());
+            }
             log.info("review task finished. taskId={}, totalMs={}", task.getId(), elapsedMs(workerStartNs));
             return context;
         }

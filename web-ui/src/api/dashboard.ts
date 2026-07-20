@@ -40,6 +40,8 @@ export const fetchReviewSubmitters = () => http.get("/dashboard/review-submitter
 
 export const retryReviewTask = (taskId: number) => http.post(`/dashboard/review-tasks/${taskId}/retry`);
 
+export const interruptReviewTask = (taskId: number) => http.post(`/dashboard/review-tasks/${taskId}/interrupt`);
+
 export const batchRetryReviewTask = (taskIds: number[]) =>
   http.post("/dashboard/review-tasks/batch-retry", { taskIds });
 

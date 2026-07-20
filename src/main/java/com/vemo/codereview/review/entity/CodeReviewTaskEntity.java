@@ -29,6 +29,7 @@ public class CodeReviewTaskEntity {
     private String fixReviewComment;
     private Integer retryCount;
     private Date nextRetryAt;
+    private String executionToken;
     private String errorCode;
     private String errorMessage;
     private Date startedAt;

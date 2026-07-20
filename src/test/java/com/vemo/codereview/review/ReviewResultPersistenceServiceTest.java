@@ -1,6 +1,7 @@
 package com.vemo.codereview.review;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,12 +24,16 @@ import com.vemo.codereview.review.service.ReviewResultPersistenceService;
 import java.util.Collections;
 import java.util.Date;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.jdbc.Sql;
 
 @SpringBootTest(classes = CodeReviewerApplication.class)
+@ExtendWith(OutputCaptureExtension.class)
 @TestPropertySource(properties = {
     "spring.datasource.driver-class-name=org.h2.Driver",
     "spring.datasource.url=jdbc:h2:mem:review-result-db;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
@@ -79,6 +84,7 @@ class ReviewResultPersistenceServiceTest {
         task.setTargetId("31");
         task.setTargetTitle("Atomic MR completion");
         task.setStatus("RUNNING");
+        task.setExecutionToken("mr-token-1");
         task.setRetryCount(0);
         task.setCreatedAt(now);
         task.setUpdatedAt(now);
@@ -94,12 +100,160 @@ class ReviewResultPersistenceServiceTest {
         output.setModelName("deepseek-chat");
 
         MrReviewCompletion completion = reviewResultPersistenceService.completeMrReview(
-            task.getId(), "head-1", output, null);
+            task.getId(), "head-1", "mr-token-1", output, null);
         CodeReviewTaskEntity savedTask = taskMapper.selectById(task.getId());
 
         assertTrue(completion.isCompleted());
         assertEquals("SUCCESS", savedTask.getStatus());
         assertEquals("TO_BE_FIXED", savedTask.getFixStatus());
+        assertEquals(null, savedTask.getExecutionToken());
+    }
+
+    @Test
+    void shouldNotPersistChatMrReviewWhenHeadChanges() {
+        Date now = new Date();
+        CodeReviewEventEntity event = new CodeReviewEventEntity();
+        event.setSourcePlatform("gitlab");
+        event.setEventType("merge_request");
+        event.setProjectId(3001L);
+        event.setProjectName("MR stale completion");
+        event.setObjectId("mr-stale-1");
+        event.setObjectType("merge_request");
+        event.setSubmitBranch("test-cr");
+        event.setMrHeadSha("head-2");
+        event.setIdempotentKey("mr-stale-chat-completion-1");
+        event.setStatus("TASK_CREATED");
+        event.setCreatedAt(now);
+        event.setUpdatedAt(now);
+        eventMapper.insert(event);
+
+        CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setEventId(event.getId());
+        task.setTaskType("MR_REVIEW");
+        task.setSourcePlatform("gitlab");
+        task.setProjectId(3001L);
+        task.setTargetId("32");
+        task.setTargetTitle("Stale MR completion");
+        task.setStatus("RUNNING");
+        task.setExecutionToken("mr-token-2");
+        task.setRetryCount(0);
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        taskMapper.insert(task);
+
+        ReviewSummary summary = new ReviewSummary();
+        summary.setRiskLevel("LOW");
+        summary.setSummary("No blocking issue");
+        summary.setComments(Collections.<ReviewCommentDraft>emptyList());
+
+        MrReviewCompletion completion = reviewResultPersistenceService.completeMrReview(
+            task.getId(), "head-1", "mr-token-2", "openai-compatible", "deepseek-chat", summary,
+            buildResponse("{\"summary\":\"No blocking issue\"}", 120, 35, 155), null);
+
+        Long resultCount = codeReviewResultMapper.selectCount(
+            new QueryWrapper<CodeReviewResultEntity>().eq("task_id", task.getId()));
+
+        assertFalse(completion.isCompleted());
+        assertEquals(Long.valueOf(0L), resultCount);
+    }
+
+    @Test
+    void shouldNotPersistMrReviewWhenExecutionTokenChanges() {
+        Date now = new Date();
+        CodeReviewEventEntity event = new CodeReviewEventEntity();
+        event.setSourcePlatform("gitlab");
+        event.setEventType("merge_request");
+        event.setProjectId(3001L);
+        event.setProjectName("MR interrupted completion");
+        event.setObjectId("mr-interrupted-1");
+        event.setObjectType("merge_request");
+        event.setSubmitBranch("test-cr");
+        event.setMrHeadSha("head-3");
+        event.setIdempotentKey("mr-interrupted-token-completion-1");
+        event.setStatus("TASK_CREATED");
+        event.setCreatedAt(now);
+        event.setUpdatedAt(now);
+        eventMapper.insert(event);
+
+        CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setEventId(event.getId());
+        task.setTaskType("MR_REVIEW");
+        task.setSourcePlatform("gitlab");
+        task.setProjectId(3001L);
+        task.setTargetId("33");
+        task.setTargetTitle("Interrupted MR completion");
+        task.setStatus("FAILED");
+        task.setExecutionToken(null);
+        task.setRetryCount(0);
+        task.setErrorCode("USER_INTERRUPTED");
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        taskMapper.insert(task);
+
+        ReviewSummary summary = new ReviewSummary();
+        summary.setRiskLevel("LOW");
+        summary.setSummary("No blocking issue");
+        summary.setComments(Collections.<ReviewCommentDraft>emptyList());
+
+        MrReviewCompletion completion = reviewResultPersistenceService.completeMrReview(
+            task.getId(), "head-3", "old-token", "openai-compatible", "deepseek-chat", summary,
+            buildResponse("{\"summary\":\"No blocking issue\"}", 120, 35, 155), null);
+
+        Long resultCount = codeReviewResultMapper.selectCount(
+            new QueryWrapper<CodeReviewResultEntity>().eq("task_id", task.getId()));
+        CodeReviewTaskEntity savedTask = taskMapper.selectById(task.getId());
+
+        assertFalse(completion.isCompleted());
+        assertEquals(Long.valueOf(0L), resultCount);
+        assertEquals("FAILED", savedTask.getStatus());
+        assertEquals("USER_INTERRUPTED", savedTask.getErrorCode());
+    }
+
+    @Test
+    void shouldLogDiscardedMrReviewWhenExecutionTokenDoesNotMatch(CapturedOutput output) {
+        Date now = new Date();
+        CodeReviewEventEntity event = new CodeReviewEventEntity();
+        event.setSourcePlatform("gitlab");
+        event.setEventType("merge_request");
+        event.setProjectId(3001L);
+        event.setProjectName("MR token mismatch log");
+        event.setObjectId("mr-token-log-1");
+        event.setObjectType("merge_request");
+        event.setSubmitBranch("test-cr");
+        event.setMrHeadSha("head-log");
+        event.setIdempotentKey("mr-token-mismatch-log-1");
+        event.setStatus("TASK_CREATED");
+        event.setCreatedAt(now);
+        event.setUpdatedAt(now);
+        eventMapper.insert(event);
+
+        CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setEventId(event.getId());
+        task.setTaskType("MR_REVIEW");
+        task.setSourcePlatform("gitlab");
+        task.setProjectId(3001L);
+        task.setTargetId("34");
+        task.setTargetTitle("Token mismatch MR completion");
+        task.setStatus("RUNNING");
+        task.setExecutionToken("current-token");
+        task.setRetryCount(0);
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        taskMapper.insert(task);
+
+        ReviewSummary summary = new ReviewSummary();
+        summary.setRiskLevel("LOW");
+        summary.setSummary("No blocking issue");
+        summary.setComments(Collections.<ReviewCommentDraft>emptyList());
+
+        MrReviewCompletion completion = reviewResultPersistenceService.completeMrReview(
+            task.getId(), "head-log", "old-token", "openai-compatible", "deepseek-chat", summary,
+            buildResponse("{\"summary\":\"No blocking issue\"}", 120, 35, 155), null);
+
+        assertFalse(completion.isCompleted());
+        assertTrue(output.toString().contains("review task result discarded before persistence"));
+        assertTrue(output.toString().contains("reason=EXECUTION_TOKEN_MISMATCH"));
+        assertTrue(output.toString().contains("taskId=" + task.getId()));
     }
 
     @Test

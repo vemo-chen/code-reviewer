@@ -2,8 +2,6 @@ package com.vemo.codereview.review;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 import com.vemo.codereview.CodeReviewerApplication;
 import com.vemo.codereview.common.exception.DomainException;
@@ -12,14 +10,13 @@ import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
 import com.vemo.codereview.review.service.ReviewRetryService;
-import com.vemo.codereview.review.service.ReviewTaskDispatcher;
-import com.vemo.codereview.scheduler.ReviewRecoveryScheduler;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.jdbc.Sql;
 
@@ -37,19 +34,42 @@ class ReviewRetryServiceTest {
     private ReviewRetryService reviewRetryService;
 
     @Autowired
-    private ReviewRecoveryScheduler reviewRecoveryScheduler;
-
-    @Autowired
     private ReviewTaskStoreMapper codeReviewTaskMapper;
 
     @Autowired
     private ReviewEventStoreMapper codeReviewEventMapper;
 
-    @MockBean
-    private ReviewTaskDispatcher reviewTaskDispatcher;
+    @BeforeEach
+    void clearData() {
+        codeReviewTaskMapper.delete(null);
+        codeReviewEventMapper.delete(null);
+    }
 
     @Test
-    void shouldMarkTaskFailedAndDispatchWhenRetryWindowArrives() {
+    void shouldFindFreshPendingTaskAsRunnableCandidate() {
+        Date now = new Date();
+
+        CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setEventId(7L);
+        task.setTaskType("PUSH_REVIEW");
+        task.setSourcePlatform("gitlab");
+        task.setProjectId(1001L);
+        task.setTargetId("fresh-pending-sha");
+        task.setTargetTitle("Fresh pending task");
+        task.setStatus("PENDING");
+        task.setRetryCount(0);
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        codeReviewTaskMapper.insert(task);
+
+        assertEquals(Arrays.asList(task.getId()),
+            reviewRetryService.findRunnableTasks(now).stream()
+                .map(CodeReviewTaskEntity::getId)
+                .collect(java.util.stream.Collectors.toList()));
+    }
+
+    @Test
+    void shouldFindFailedTaskWhenRetryWindowArrives() {
         Date now = new Date();
 
         CodeReviewTaskEntity task = new CodeReviewTaskEntity();
@@ -79,13 +99,14 @@ class ReviewRetryServiceTest {
         failedTask.setNextRetryAt(calendar.getTime());
         codeReviewTaskMapper.updateById(failedTask);
 
-        reviewRecoveryScheduler.recoverPendingTasks();
-
-        verify(reviewTaskDispatcher, times(1)).dispatch(task.getId());
+        assertEquals(Arrays.asList(task.getId()),
+            reviewRetryService.findRunnableTasks(new Date()).stream()
+                .map(CodeReviewTaskEntity::getId)
+                .collect(java.util.stream.Collectors.toList()));
     }
 
     @Test
-    void shouldRecoverOrphanPendingTask() {
+    void shouldFindPendingTaskWithoutOrphanDelay() {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(new Date());
         calendar.add(Calendar.MINUTE, -11);
@@ -103,9 +124,41 @@ class ReviewRetryServiceTest {
         task.setUpdatedAt(calendar.getTime());
         codeReviewTaskMapper.insert(task);
 
-        reviewRecoveryScheduler.recoverPendingTasks();
+        assertEquals(Arrays.asList(task.getId()),
+            reviewRetryService.findRunnableTasks(new Date()).stream()
+                .map(CodeReviewTaskEntity::getId)
+                .collect(java.util.stream.Collectors.toList()));
+    }
 
-        verify(reviewTaskDispatcher, times(1)).dispatch(task.getId());
+    @Test
+    void shouldReturnOnlyOneRunnableTaskPerPoll() {
+        Date now = new Date();
+
+        CodeReviewTaskEntity first = buildPendingTask(now, "first-pending-sha");
+        CodeReviewTaskEntity second = buildPendingTask(now, "second-pending-sha");
+        codeReviewTaskMapper.insert(first);
+        codeReviewTaskMapper.insert(second);
+
+        assertEquals(Arrays.asList(first.getId()),
+            reviewRetryService.findRunnableTasks(new Date()).stream()
+                .map(CodeReviewTaskEntity::getId)
+                .collect(java.util.stream.Collectors.toList()));
+    }
+
+    @Test
+    void shouldFindThirdRetryFailedTaskWhenRetryWindowArrives() {
+        Date now = new Date();
+
+        CodeReviewTaskEntity task = buildPendingTask(now, "third-retry-sha");
+        task.setStatus("FAILED");
+        task.setRetryCount(3);
+        task.setNextRetryAt(minutesFromNow(-1));
+        codeReviewTaskMapper.insert(task);
+
+        assertEquals(Arrays.asList(task.getId()),
+            reviewRetryService.findRunnableTasks(new Date()).stream()
+                .map(CodeReviewTaskEntity::getId)
+                .collect(java.util.stream.Collectors.toList()));
     }
 
     @Test
@@ -194,5 +247,27 @@ class ReviewRetryServiceTest {
         assertEquals(Integer.valueOf(5), failedTask.getRetryCount());
         assertEquals("FAILED", failedEvent.getStatus());
         assertEquals("REVIEW_RESULT_PARSE_ERROR", failedTask.getErrorCode());
+    }
+
+    private CodeReviewTaskEntity buildPendingTask(Date now, String targetId) {
+        CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setEventId(7L);
+        task.setTaskType("PUSH_REVIEW");
+        task.setSourcePlatform("gitlab");
+        task.setProjectId(1001L);
+        task.setTargetId(targetId);
+        task.setTargetTitle("Runnable task");
+        task.setStatus("PENDING");
+        task.setRetryCount(0);
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        return task;
+    }
+
+    private Date minutesFromNow(int minutes) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(new Date());
+        calendar.add(Calendar.MINUTE, minutes);
+        return calendar.getTime();
     }
 }

@@ -29,6 +29,11 @@ code-reviewer:
       max-pool-size: 16
       queue-capacity: 200
       thread-name-prefix: review-worker-
+    review-worker:
+      enabled: true
+      worker-count: 8
+      idle-sleep-ms: 5000
+      error-sleep-ms: 10000
   gitlab:
     connect-timeout-ms: 5000
     read-timeout-ms: 15000

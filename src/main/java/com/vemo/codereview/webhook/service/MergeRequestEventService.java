@@ -1,6 +1,7 @@
 package com.vemo.codereview.webhook.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.vemo.codereview.dashboard.entity.ProjectProfileEntity;
 import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
@@ -10,7 +11,6 @@ import com.vemo.codereview.review.model.ReviewEventLifecycle;
 import com.vemo.codereview.review.model.ReviewTaskLifecycle;
 import com.vemo.codereview.review.service.ReviewResultPersistenceService;
 import com.vemo.codereview.review.service.ReviewStateService;
-import com.vemo.codereview.review.service.ReviewTaskDispatcher;
 import com.vemo.codereview.webhook.model.StandardReviewEvent;
 import java.util.Date;
 import lombok.extern.slf4j.Slf4j;
@@ -26,16 +26,14 @@ public class MergeRequestEventService {
     private final ReviewTaskStoreMapper taskMapper;
     private final ReviewResultPersistenceService resultPersistenceService;
     private final ReviewStateService reviewStateService;
-    private final ReviewTaskDispatcher taskDispatcher;
 
     public MergeRequestEventService(ReviewEventStoreMapper eventMapper, ReviewTaskStoreMapper taskMapper,
                                     ReviewResultPersistenceService resultPersistenceService,
-                                    ReviewStateService reviewStateService, ReviewTaskDispatcher taskDispatcher) {
+                                    ReviewStateService reviewStateService) {
         this.eventMapper = eventMapper;
         this.taskMapper = taskMapper;
         this.resultPersistenceService = resultPersistenceService;
         this.reviewStateService = reviewStateService;
-        this.taskDispatcher = taskDispatcher;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -61,8 +59,7 @@ public class MergeRequestEventService {
         }
         resultPersistenceService.deleteByTaskId(task.getId());
         resetTask(task, incoming);
-        taskMapper.updateById(task);
-        taskDispatcher.dispatch(task.getId());
+        updateResetTask(task);
     }
 
     private void create(StandardReviewEvent incoming, ProjectProfileEntity project) {
@@ -108,7 +105,6 @@ public class MergeRequestEventService {
         task.setUpdatedAt(now);
         taskMapper.insert(task);
         reviewStateService.markEventTaskCreated(event);
-        taskDispatcher.dispatch(task.getId());
     }
 
     private void updateEvent(CodeReviewEventEntity existing, StandardReviewEvent incoming) {
@@ -138,10 +134,34 @@ public class MergeRequestEventService {
         task.setFixReviewComment(null);
         task.setRetryCount(0);
         task.setNextRetryAt(null);
+        task.setExecutionToken(null);
         task.setErrorCode(null);
         task.setErrorMessage(null);
         task.setStartedAt(null);
         task.setFinishedAt(null);
         task.setUpdatedAt(new Date());
+    }
+
+    private void updateResetTask(CodeReviewTaskEntity task) {
+        UpdateWrapper<CodeReviewTaskEntity> wrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        wrapper.eq("id", task.getId())
+            .set("target_id", task.getTargetId())
+            .set("target_title", task.getTargetTitle())
+            .set("status", task.getStatus())
+            .set("fix_status", null)
+            .set("fix_submitted_by", null)
+            .set("fix_submitted_at", null)
+            .set("fix_reviewed_by", null)
+            .set("fix_reviewed_at", null)
+            .set("fix_review_comment", null)
+            .set("retry_count", 0)
+            .set("next_retry_at", null)
+            .set("execution_token", null)
+            .set("error_code", null)
+            .set("error_message", null)
+            .set("started_at", null)
+            .set("finished_at", null)
+            .set("updated_at", task.getUpdatedAt());
+        taskMapper.update(null, wrapper);
     }
 }

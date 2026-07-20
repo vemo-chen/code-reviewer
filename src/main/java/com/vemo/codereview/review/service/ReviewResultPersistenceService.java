@@ -1,6 +1,7 @@
 package com.vemo.codereview.review.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
 import com.vemo.codereview.review.entity.CodeReviewCommentCodeSnapshotEntity;
 import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
@@ -24,9 +25,12 @@ import com.vemo.codereview.review.model.ReviewFileContext;
 import com.vemo.codereview.review.model.ReviewSummary;
 import java.util.Date;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+@Slf4j
 @Service
 public class ReviewResultPersistenceService {
 
@@ -164,32 +168,194 @@ public class ReviewResultPersistenceService {
     }
 
     @Transactional(rollbackFor = Exception.class)
+    public CodeReviewResultEntity completeReview(Long taskId, String expectedExecutionToken,
+                                                 String providerName, String modelName, ReviewSummary summary,
+                                                 ChatCompletionResponse response, ReviewExecutionContext context) {
+        CodeReviewTaskEntity task = prepareTaskCompletion(taskId, expectedExecutionToken);
+        if (task == null) {
+            return null;
+        }
+        CodeReviewResultEntity result = persist(taskId, providerName, modelName, summary, response, context);
+        finishTaskReview(task, result);
+        return result;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public CodeReviewResultEntity completeAggregatedReview(Long taskId, String expectedExecutionToken,
+                                                           AggregatedReviewOutput output,
+                                                           ReviewExecutionContext context) {
+        CodeReviewTaskEntity task = prepareTaskCompletion(taskId, expectedExecutionToken);
+        if (task == null) {
+            return null;
+        }
+        CodeReviewResultEntity result = persistAggregated(taskId, output, context);
+        finishTaskReview(task, result);
+        return result;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
     public MrReviewCompletion completeMrReview(Long taskId, String expectedHead,
                                                AggregatedReviewOutput output, ReviewExecutionContext context) {
+        return completeMrReview(taskId, expectedHead, null, output, context);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public MrReviewCompletion completeMrReview(Long taskId, String expectedHead, String expectedExecutionToken,
+                                               AggregatedReviewOutput output, ReviewExecutionContext context) {
+        MrReviewCompletion completion = prepareMrReviewCompletion(taskId, expectedHead, expectedExecutionToken);
+        if (!completion.isCompleted()) {
+            return completion;
+        }
+        CodeReviewResultEntity result = persistAggregated(taskId, output, context);
+        finishMrReview(taskId, result, completion);
+        return completion;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public MrReviewCompletion completeMrReview(Long taskId, String expectedHead,
+                                               String providerName, String modelName, ReviewSummary summary,
+                                               ChatCompletionResponse response, ReviewExecutionContext context) {
+        return completeMrReview(taskId, expectedHead, null, providerName, modelName, summary, response, context);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public MrReviewCompletion completeMrReview(Long taskId, String expectedHead, String expectedExecutionToken,
+                                               String providerName, String modelName, ReviewSummary summary,
+                                               ChatCompletionResponse response, ReviewExecutionContext context) {
+        MrReviewCompletion completion = prepareMrReviewCompletion(taskId, expectedHead, expectedExecutionToken);
+        if (!completion.isCompleted()) {
+            return completion;
+        }
+        CodeReviewResultEntity result = persist(taskId, providerName, modelName, summary, response, context);
+        finishMrReview(taskId, result, completion);
+        return completion;
+    }
+
+    private MrReviewCompletion prepareMrReviewCompletion(Long taskId, String expectedHead, String expectedExecutionToken) {
         CodeReviewTaskEntity initial = taskMapper.selectById(taskId);
         MrReviewCompletion completion = new MrReviewCompletion();
-        if (initial == null || initial.getEventId() == null) return completion;
+        if (initial == null || initial.getEventId() == null) {
+            logResultDiscarded(taskId, "TASK_OR_EVENT_MISSING", null, null, null, false);
+            return completion;
+        }
         CodeReviewEventEntity event = eventMapper.selectOne(new QueryWrapper<CodeReviewEventEntity>()
             .eq("id", initial.getEventId()).last("FOR UPDATE"));
         CodeReviewTaskEntity task = taskMapper.selectOne(new QueryWrapper<CodeReviewTaskEntity>()
             .eq("id", taskId).last("FOR UPDATE"));
-        if (event == null || task == null || !equals(expectedHead, event.getMrHeadSha())
-            || !ReviewTaskLifecycle.RUNNING.name().equals(task.getStatus())) return completion;
-        CodeReviewResultEntity result = persistAggregated(taskId, output, context);
+        if (event == null || task == null) {
+            logResultDiscarded(taskId, "TASK_OR_EVENT_MISSING", null, null,
+                task == null ? null : task.getStatus(), false);
+            return completion;
+        }
+        boolean tokenMatched = matchesExecutionToken(expectedExecutionToken, task.getExecutionToken());
+        if (!ReviewTaskLifecycle.RUNNING.name().equals(task.getStatus())) {
+            logResultDiscarded(taskId, "STATUS_CHANGED", expectedHead, event.getMrHeadSha(),
+                task.getStatus(), tokenMatched);
+            return completion;
+        }
+        if (!tokenMatched) {
+            logResultDiscarded(taskId, "EXECUTION_TOKEN_MISMATCH", expectedHead, event.getMrHeadSha(),
+                task.getStatus(), false);
+            return completion;
+        }
+        if (!equals(expectedHead, event.getMrHeadSha())) {
+            logResultDiscarded(taskId, "MR_HEAD_CHANGED", expectedHead, event.getMrHeadSha(),
+                task.getStatus(), true);
+            return completion;
+        }
+        completion.setCompleted(true);
+        return completion;
+    }
+
+    private CodeReviewTaskEntity prepareTaskCompletion(Long taskId, String expectedExecutionToken) {
+        CodeReviewTaskEntity task = taskMapper.selectOne(new QueryWrapper<CodeReviewTaskEntity>()
+            .eq("id", taskId).last("FOR UPDATE"));
+        if (task == null) {
+            logResultDiscarded(taskId, "TASK_MISSING", null, null, null, false);
+            return null;
+        }
+        boolean tokenMatched = matchesExecutionToken(expectedExecutionToken, task.getExecutionToken());
+        if (!ReviewTaskLifecycle.RUNNING.name().equals(task.getStatus())) {
+            logResultDiscarded(taskId, "STATUS_CHANGED", null, null, task.getStatus(), tokenMatched);
+            return null;
+        }
+        if (!tokenMatched) {
+            logResultDiscarded(taskId, "EXECUTION_TOKEN_MISMATCH", null, null, task.getStatus(), false);
+            return null;
+        }
+        return task;
+    }
+
+    private void logResultDiscarded(Long taskId, String reason, String expectedHead, String currentHead,
+                                    String taskStatus, boolean executionTokenMatched) {
+        log.info("review task result discarded before persistence. taskId={}, reason={}, expectedHead={}, "
+                + "currentHead={}, taskStatus={}, executionTokenMatched={}",
+            taskId, reason, expectedHead, currentHead, taskStatus, executionTokenMatched);
+    }
+
+    private boolean matchesExecutionToken(String expectedExecutionToken, String currentExecutionToken) {
+        if (!StringUtils.hasText(expectedExecutionToken)) {
+            return true;
+        }
+        return expectedExecutionToken.equals(currentExecutionToken);
+    }
+
+    private void finishMrReview(Long taskId, CodeReviewResultEntity result, MrReviewCompletion completion) {
+        CodeReviewTaskEntity task = taskMapper.selectById(taskId);
+        if (task == null) {
+            completion.setCompleted(false);
+            return;
+        }
+        CodeReviewEventEntity event = eventMapper.selectById(task.getEventId());
+        if (event == null) {
+            completion.setCompleted(false);
+            return;
+        }
         task.setStatus(ReviewTaskLifecycle.SUCCESS.name());
         task.setFixStatus(ReviewFixStatus.TO_BE_FIXED.name());
         task.setErrorCode(null);
         task.setErrorMessage(null);
         task.setNextRetryAt(null);
+        task.setExecutionToken(null);
         task.setFinishedAt(new Date());
         task.setUpdatedAt(new Date());
-        taskMapper.updateById(task);
+        UpdateWrapper<CodeReviewTaskEntity> taskWrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        taskWrapper.eq("id", task.getId())
+            .set("status", task.getStatus())
+            .set("fix_status", task.getFixStatus())
+            .set("error_code", null)
+            .set("error_message", null)
+            .set("next_retry_at", null)
+            .set("execution_token", null)
+            .set("finished_at", task.getFinishedAt())
+            .set("updated_at", task.getUpdatedAt());
+        taskMapper.update(null, taskWrapper);
         event.setStatus(ReviewEventLifecycle.PROCESSED.name());
         event.setUpdatedAt(new Date());
         eventMapper.updateById(event);
-        completion.setCompleted(true);
         completion.setResult(result);
-        return completion;
+    }
+
+    private void finishTaskReview(CodeReviewTaskEntity task, CodeReviewResultEntity result) {
+        task.setStatus(ReviewTaskLifecycle.SUCCESS.name());
+        task.setFixStatus(ReviewFixStatus.TO_BE_FIXED.name());
+        task.setErrorCode(null);
+        task.setErrorMessage(null);
+        task.setNextRetryAt(null);
+        task.setExecutionToken(null);
+        task.setFinishedAt(new Date());
+        task.setUpdatedAt(new Date());
+        UpdateWrapper<CodeReviewTaskEntity> taskWrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        taskWrapper.eq("id", task.getId())
+            .set("status", task.getStatus())
+            .set("fix_status", task.getFixStatus())
+            .set("error_code", null)
+            .set("error_message", null)
+            .set("next_retry_at", null)
+            .set("execution_token", null)
+            .set("finished_at", task.getFinishedAt())
+            .set("updated_at", task.getUpdatedAt());
+        taskMapper.update(null, taskWrapper);
     }
 
     private void persistComments(CodeReviewResultEntity resultEntity, ReviewSummary summary,

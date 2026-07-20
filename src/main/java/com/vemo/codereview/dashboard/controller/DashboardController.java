@@ -79,6 +79,12 @@ public class DashboardController {
         return ApiResponse.success(null);
     }
 
+    @PostMapping("/review-tasks/{taskId}/interrupt")
+    public ApiResponse<Void> interruptReviewTask(@PathVariable Long taskId) {
+        reviewTaskManualRetryService.interrupt(taskId);
+        return ApiResponse.success(null);
+    }
+
     @PostMapping("/review-tasks/batch-retry")
     public ApiResponse<BatchRetryResponse> batchRetryReviewTask(@RequestBody BatchRetryRequest request) {
         return ApiResponse.success(reviewTaskManualRetryService.batchRetry(request.getTaskIds()));

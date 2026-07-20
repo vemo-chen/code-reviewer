@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -14,7 +13,6 @@ import org.springframework.stereotype.Service;
 public class ReviewRetryService {
 
     private static final int MAX_RETRY_COUNT = 3;
-    private static final int ORPHAN_PENDING_MINUTES = 10;
 
     private final ReviewTaskStoreMapper codeReviewTaskMapper;
     private final ReviewStateService reviewStateService;
@@ -25,46 +23,51 @@ public class ReviewRetryService {
     }
 
     public void handleFailure(CodeReviewTaskEntity task, RuntimeException ex) {
-        String errorCode = extractErrorCode(ex);
-        String errorMessage = trimMessage(ex == null ? null : ex.getMessage());
-
-        Integer currentRetry = task.getRetryCount() == null ? 0 : task.getRetryCount();
-        int nextRetryCount = currentRetry + 1;
-        Date nextRetryAt = currentRetry < MAX_RETRY_COUNT ? buildNextRetryAt(nextRetryCount) : null;
-
-        reviewStateService.markTaskFailed(task, nextRetryCount, nextRetryAt, errorCode, errorMessage);
-        if (nextRetryCount > MAX_RETRY_COUNT) {
+        FailureUpdate failureUpdate = buildFailureUpdate(task, ex);
+        reviewStateService.markTaskFailed(
+            task, failureUpdate.nextRetryCount, failureUpdate.nextRetryAt,
+            failureUpdate.errorCode, failureUpdate.errorMessage);
+        if (failureUpdate.nextRetryCount > MAX_RETRY_COUNT) {
             reviewStateService.markEventFailed(task.getEventId());
         }
     }
 
-    public List<CodeReviewTaskEntity> findRecoverableTasks(Date now) {
-        List<CodeReviewTaskEntity> recoverableTasks = new ArrayList<CodeReviewTaskEntity>();
-        recoverableTasks.addAll(findRetryableFailedTasks(now));
-        recoverableTasks.addAll(findOrphanPendingTasks(now));
-        return recoverableTasks;
-    }
+    public boolean handleFailure(CodeReviewTaskEntity task, String expectedExecutionToken, RuntimeException ex) {
+        FailureUpdate failureUpdate = buildFailureUpdate(task, ex);
 
-    private List<CodeReviewTaskEntity> findRetryableFailedTasks(Date now) {
-        QueryWrapper<CodeReviewTaskEntity> wrapper = new QueryWrapper<CodeReviewTaskEntity>();
-        wrapper.eq("status", "FAILED")
-            .lt("retry_count", MAX_RETRY_COUNT)
-            .isNotNull("next_retry_at")
-            .le("next_retry_at", now);
-        return codeReviewTaskMapper.selectList(wrapper);
-    }
-
-    private List<CodeReviewTaskEntity> findOrphanPendingTasks(Date now) {
-        QueryWrapper<CodeReviewTaskEntity> wrapper = new QueryWrapper<CodeReviewTaskEntity>();
-        wrapper.eq("status", "PENDING");
-        List<CodeReviewTaskEntity> pendingTasks = codeReviewTaskMapper.selectList(wrapper);
-        List<CodeReviewTaskEntity> recoverableTasks = new ArrayList<CodeReviewTaskEntity>();
-        for (CodeReviewTaskEntity task : pendingTasks) {
-            if (isOrphanPending(task, now)) {
-                recoverableTasks.add(task);
-            }
+        boolean updated = reviewStateService.markTaskFailedIfCurrent(
+            task, expectedExecutionToken, failureUpdate.nextRetryCount, failureUpdate.nextRetryAt,
+            failureUpdate.errorCode, failureUpdate.errorMessage);
+        if (!updated) {
+            return false;
         }
-        return recoverableTasks;
+        if (failureUpdate.nextRetryCount > MAX_RETRY_COUNT) {
+            reviewStateService.markEventFailed(task.getEventId());
+        }
+        return true;
+    }
+
+    private FailureUpdate buildFailureUpdate(CodeReviewTaskEntity task, RuntimeException ex) {
+        String errorCode = extractErrorCode(ex);
+        String errorMessage = trimMessage(ex == null ? null : ex.getMessage());
+        Integer currentRetry = task.getRetryCount() == null ? 0 : task.getRetryCount();
+        int nextRetryCount = currentRetry + 1;
+        Date nextRetryAt = currentRetry < MAX_RETRY_COUNT ? buildNextRetryAt(nextRetryCount) : null;
+        return new FailureUpdate(nextRetryCount, nextRetryAt, errorCode, errorMessage);
+    }
+
+    public List<CodeReviewTaskEntity> findRunnableTasks(Date now) {
+        QueryWrapper<CodeReviewTaskEntity> wrapper = new QueryWrapper<CodeReviewTaskEntity>();
+        wrapper.and(statusWrapper -> statusWrapper
+                .eq("status", "PENDING")
+                .or(failedWrapper -> failedWrapper
+                    .eq("status", "FAILED")
+                    .le("retry_count", MAX_RETRY_COUNT)
+                    .isNotNull("next_retry_at")
+                    .le("next_retry_at", now)))
+            .orderByAsc("created_at")
+            .last("LIMIT 1");
+        return codeReviewTaskMapper.selectList(wrapper);
     }
 
     private String extractErrorCode(RuntimeException ex) {
@@ -88,20 +91,18 @@ public class ReviewRetryService {
         return calendar.getTime();
     }
 
-    private boolean isOrphanPending(CodeReviewTaskEntity task, Date now) {
-        if (task.getRetryCount() != null && task.getRetryCount() > 0) {
-            return false;
+    private static class FailureUpdate {
+        private final int nextRetryCount;
+        private final Date nextRetryAt;
+        private final String errorCode;
+        private final String errorMessage;
+
+        private FailureUpdate(int nextRetryCount, Date nextRetryAt, String errorCode, String errorMessage) {
+            this.nextRetryCount = nextRetryCount;
+            this.nextRetryAt = nextRetryAt;
+            this.errorCode = errorCode;
+            this.errorMessage = errorMessage;
         }
-        if (task.getStartedAt() != null) {
-            return false;
-        }
-        Date baseTime = task.getCreatedAt() == null ? task.getUpdatedAt() : task.getCreatedAt();
-        if (baseTime == null) {
-            return false;
-        }
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTime(now);
-        calendar.add(Calendar.MINUTE, -ORPHAN_PENDING_MINUTES);
-        return !baseTime.after(calendar.getTime());
     }
+
 }

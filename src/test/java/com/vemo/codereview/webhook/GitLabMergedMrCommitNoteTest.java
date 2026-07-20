@@ -20,7 +20,6 @@ import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewResultStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
-import com.vemo.codereview.review.service.ReviewTaskDispatcher;
 import java.util.Date;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,9 +42,6 @@ import org.springframework.test.web.servlet.MockMvc;
 })
 @Sql(scripts = "/db/schema.sql")
 class GitLabMergedMrCommitNoteTest {
-
-    @MockBean
-    private ReviewTaskDispatcher reviewTaskDispatcher;
 
     @MockBean
     private GitLabCommentPublisher gitLabCommentPublisher;

@@ -15,14 +15,12 @@ import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
-import com.vemo.codereview.review.service.ReviewTaskDispatcher;
 import java.util.Date;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.jdbc.Sql;
@@ -41,9 +39,6 @@ class GitLabWebhookControllerTest {
 
     private Long managedProjectId1001;
     private Long managedProjectId1002;
-
-    @MockBean
-    private ReviewTaskDispatcher reviewTaskDispatcher;
 
     @Autowired
     private MockMvc mockMvc;

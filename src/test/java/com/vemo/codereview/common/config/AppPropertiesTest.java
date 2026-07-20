@@ -1,7 +1,7 @@
 package com.vemo.codereview.common.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +20,10 @@ import org.springframework.test.context.TestPropertySource;
     "code-reviewer.app.async.max-pool-size=6",
     "code-reviewer.app.async.queue-capacity=50",
     "code-reviewer.app.async.thread-name-prefix=test-review-",
+    "code-reviewer.app.review-worker.enabled=false",
+    "code-reviewer.app.review-worker.worker-count=3",
+    "code-reviewer.app.review-worker.idle-sleep-ms=2000",
+    "code-reviewer.app.review-worker.error-sleep-ms=4000",
     "code-reviewer.app.platform-url=http://10.12.8.132:5173/reviews",
     "code-reviewer.gitlab.connect-timeout-ms=7000",
     "code-reviewer.gitlab.read-timeout-ms=12000"
@@ -45,6 +49,10 @@ class AppPropertiesTest {
         assertEquals(2, appProperties.getAsync().getCorePoolSize());
         assertEquals(6, appProperties.getAsync().getMaxPoolSize());
         assertEquals("test-review-", appProperties.getAsync().getThreadNamePrefix());
+        assertFalse(appProperties.getReviewWorker().isEnabled());
+        assertEquals(3, appProperties.getReviewWorker().getWorkerCount());
+        assertEquals(2000L, appProperties.getReviewWorker().getIdleSleepMs());
+        assertEquals(4000L, appProperties.getReviewWorker().getErrorSleepMs());
         assertEquals("http://10.12.8.132:5173/reviews", appProperties.getPlatformUrl());
 
         assertEquals(7000, gitLabProperties.getConnectTimeoutMs());

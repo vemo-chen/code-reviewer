@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -28,6 +28,7 @@ import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewCommentStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
+import com.vemo.codereview.review.model.MrReviewCompletion;
 import com.vemo.codereview.review.model.ReviewCommentDraft;
 import com.vemo.codereview.review.model.ReviewExecutionContext;
 import com.vemo.codereview.review.model.ReviewPromptPayload;
@@ -102,7 +103,7 @@ class ProjectScopedReviewFlowTest {
 
     @BeforeEach
     void setUp() {
-        when(reviewStateService.claimTaskRunning(anyLong())).thenReturn(true);
+        when(reviewStateService.claimTaskRunning(anyLong(), anyString())).thenReturn(true);
         reviewTaskWorker = new ReviewTaskWorker(
             reviewTaskStoreMapper,
             reviewEventStoreMapper,
@@ -141,6 +142,7 @@ class ProjectScopedReviewFlowTest {
         CodeReviewResultEntity resultEntity = buildResultEntity(9001L);
 
         when(reviewTaskStoreMapper.selectById(1L)).thenReturn(task);
+        when(reviewEventStoreMapper.selectById(10L)).thenReturn(buildMrEvent("head-1"));
         when(projectConfigService.findById(2001L)).thenReturn(projectConfig);
         when(reviewRuleService.getDefaultPromptText()).thenReturn("default prompt");
         when(projectTemplateResolverService.resolveEffectivePrompt(eq(projectConfig), eq("default prompt"))).thenReturn("check aggregate boundary");
@@ -154,14 +156,16 @@ class ProjectScopedReviewFlowTest {
         when(promptBuilderService.build(any(ReviewExecutionContext.class))).thenReturn(reviewPromptPayload);
         when(llmGatewayService.review(eq(2001L), eq(reviewPromptPayload))).thenReturn(response);
         when(reviewResponseParser.parse(response)).thenReturn(reviewSummary);
-        when(reviewResultPersistenceService.persist(
+        when(reviewResultPersistenceService.completeMrReview(
             eq(1L),
+            eq("head-1"),
+            anyString(),
             eq("openai-compatible"),
             eq("deepseek-chat"),
             eq(reviewSummary),
             eq(response),
             any(ReviewExecutionContext.class)))
-            .thenReturn(resultEntity);
+            .thenReturn(completed(resultEntity));
         when(reviewCommentStoreMapper.selectList(any())).thenReturn(Collections.<CodeReviewCommentEntity>emptyList());
 
         reviewTaskWorker.process(1L);
@@ -172,8 +176,9 @@ class ProjectScopedReviewFlowTest {
         verify(gitLabCommentPublisher, never()).publishMergeRequest(anyLong(), any(), any(), any());
         verify(gitLabCommentPublisher, never()).publishCommit(anyLong(), any(), any(), any());
         verify(weComNotificationService, never()).notifyReviewResult(anyLong(), any(), any(), any(), any());
-        verify(reviewStateService).markTaskSuccess(task);
-        verify(reviewStateService).markEventProcessed(10L);
+        verify(reviewResultPersistenceService).completeMrReview(
+            eq(1L), eq("head-1"), anyString(), eq("openai-compatible"), eq("deepseek-chat"),
+            eq(reviewSummary), eq(response), any(ReviewExecutionContext.class));
     }
 
     @Test
@@ -192,6 +197,7 @@ class ProjectScopedReviewFlowTest {
         commentEntity.setCategory("Project hard rule");
 
         when(reviewTaskStoreMapper.selectById(1L)).thenReturn(task);
+        when(reviewEventStoreMapper.selectById(10L)).thenReturn(buildMrEvent("head-1"));
         when(projectConfigService.findById(2001L)).thenReturn(projectConfig);
         when(reviewRuleService.getDefaultPromptText()).thenReturn("default prompt");
         when(projectTemplateResolverService.resolveEffectivePrompt(eq(projectConfig), eq("default prompt"))).thenReturn(null);
@@ -205,14 +211,16 @@ class ProjectScopedReviewFlowTest {
         when(promptBuilderService.build(any(ReviewExecutionContext.class))).thenReturn(reviewPromptPayload);
         when(llmGatewayService.review(eq(2001L), eq(reviewPromptPayload))).thenReturn(response);
         when(reviewResponseParser.parse(response)).thenReturn(reviewSummary);
-        when(reviewResultPersistenceService.persist(
+        when(reviewResultPersistenceService.completeMrReview(
             eq(1L),
+            eq("head-1"),
+            anyString(),
             eq("openai-compatible"),
             eq("deepseek-chat"),
             eq(reviewSummary),
             eq(response),
             any(ReviewExecutionContext.class)))
-            .thenReturn(resultEntity);
+            .thenReturn(completed(resultEntity));
         when(reviewCommentStoreMapper.selectList(any())).thenReturn(Arrays.asList(commentEntity));
 
         reviewTaskWorker.process(1L);
@@ -236,6 +244,9 @@ class ProjectScopedReviewFlowTest {
     @Test
     void shouldKeepTaskSuccessfulWhenEventProcessedMarkingFails() {
         CodeReviewTaskEntity task = buildTask();
+        task.setTaskType("PUSH_REVIEW");
+        task.setTargetId("head-c");
+        CodeReviewEventEntity event = buildPushEvent();
         ProjectProfileEntity projectConfig = buildProjectConfig(false, false, null, null);
         ReviewPromptPayload reviewPromptPayload = new ReviewPromptPayload();
         ChatCompletionResponse response = new ChatCompletionResponse();
@@ -244,21 +255,20 @@ class ProjectScopedReviewFlowTest {
         CodeReviewResultEntity resultEntity = buildResultEntity(9003L);
 
         when(reviewTaskStoreMapper.selectById(1L)).thenReturn(task);
+        when(reviewEventStoreMapper.selectById(10L)).thenReturn(event);
         when(projectConfigService.findById(2001L)).thenReturn(projectConfig);
         when(reviewRuleService.getDefaultPromptText()).thenReturn("default prompt");
         when(projectTemplateResolverService.resolveEffectivePrompt(eq(projectConfig), eq("default prompt"))).thenReturn(null);
         when(projectTemplateResolverService.resolveEffectiveFileExtensions(eq(projectConfig))).thenReturn(null);
-        when(gitLabReviewTargetService.getMergeRequestChanges(
-            "http://gitlab.example.com/group/subgroup/mas-core",
-            1001L,
-            "7",
-            "project-token"
-        )).thenReturn(buildChangesPayload());
+        when(gitLabReviewTargetService.getPushChanges(
+            eq("http://gitlab.example.com/group/subgroup/mas-core"), eq(1001L), eq("base-a"), eq("head-c"), eq("test-cr"),
+            any(), eq("project-token"))).thenReturn(buildChangesPayload());
         when(promptBuilderService.build(any(ReviewExecutionContext.class))).thenReturn(reviewPromptPayload);
         when(llmGatewayService.review(eq(2001L), eq(reviewPromptPayload))).thenReturn(response);
         when(reviewResponseParser.parse(response)).thenReturn(reviewSummary);
-        when(reviewResultPersistenceService.persist(
+        when(reviewResultPersistenceService.completeReview(
             eq(1L),
+            anyString(),
             eq("openai-compatible"),
             eq("deepseek-chat"),
             eq(reviewSummary),
@@ -270,9 +280,11 @@ class ProjectScopedReviewFlowTest {
 
         assertDoesNotThrow(() -> reviewTaskWorker.process(1L));
 
-        verify(reviewStateService).markTaskSuccess(task);
+        verify(reviewResultPersistenceService).completeReview(
+            eq(1L), anyString(), eq("openai-compatible"), eq("deepseek-chat"),
+            eq(reviewSummary), eq(response), any(ReviewExecutionContext.class));
         verify(reviewStateService).markEventProcessed(10L);
-        verify(reviewRetryService, never()).handleFailure(eq(task), any(RuntimeException.class));
+        verify(reviewRetryService, never()).handleFailure(eq(task), anyString(), any(RuntimeException.class));
     }
 
     @Test
@@ -304,7 +316,7 @@ class ProjectScopedReviewFlowTest {
         when(promptBuilderService.build(any(ReviewExecutionContext.class))).thenReturn(prompt);
         when(llmGatewayService.review(2001L, prompt)).thenReturn(response);
         when(reviewResponseParser.parse(response)).thenReturn(summary);
-        when(reviewResultPersistenceService.persist(eq(1L), eq("openai-compatible"), eq("deepseek-chat"),
+        when(reviewResultPersistenceService.completeReview(eq(1L), anyString(), eq("openai-compatible"), eq("deepseek-chat"),
             eq(summary), eq(response), any(ReviewExecutionContext.class))).thenReturn(buildResultEntity(9004L));
         when(reviewCommentStoreMapper.selectList(any())).thenReturn(Collections.<CodeReviewCommentEntity>emptyList());
 
@@ -327,6 +339,25 @@ class ProjectScopedReviewFlowTest {
         task.setTargetTitle("Add review pipeline");
         task.setStatus("PENDING");
         return task;
+    }
+
+    private CodeReviewEventEntity buildMrEvent(String headSha) {
+        CodeReviewEventEntity event = new CodeReviewEventEntity();
+        event.setId(10L);
+        event.setObjectType("merge_request");
+        event.setSubmitBranch("test-cr");
+        event.setMrHeadSha(headSha);
+        return event;
+    }
+
+    private CodeReviewEventEntity buildPushEvent() {
+        CodeReviewEventEntity event = new CodeReviewEventEntity();
+        event.setId(10L);
+        event.setObjectType("push");
+        event.setSubmitBranch("test-cr");
+        event.setPayloadJson("{\"object_kind\":\"push\",\"before\":\"base-a\",\"after\":\"head-c\","
+            + "\"total_commits_count\":3,\"commits\":[{\"id\":\"head-c\"}]}");
+        return event;
     }
 
     private ProjectProfileEntity buildProjectConfig(boolean gitlabNoteEnabled, boolean wecomNotifyEnabled,
@@ -382,5 +413,12 @@ class ProjectScopedReviewFlowTest {
         entity.setBriefSummary("Found high-risk issues");
         entity.setRiskLevel("HIGH");
         return entity;
+    }
+
+    private MrReviewCompletion completed(CodeReviewResultEntity result) {
+        MrReviewCompletion completion = new MrReviewCompletion();
+        completion.setCompleted(true);
+        completion.setResult(result);
+        return completion;
     }
 }

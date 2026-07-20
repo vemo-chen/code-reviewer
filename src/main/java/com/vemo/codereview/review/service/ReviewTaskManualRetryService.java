@@ -20,16 +20,16 @@ import org.springframework.util.CollectionUtils;
 public class ReviewTaskManualRetryService {
 
     private final ReviewTaskStoreMapper codeReviewTaskMapper;
-    private final ReviewTaskDispatcher reviewTaskDispatcher;
     private final ProjectPermissionService projectPermissionService;
+    private final ReviewStateService reviewStateService;
 
     public ReviewTaskManualRetryService(
         ReviewTaskStoreMapper codeReviewTaskMapper,
-        ReviewTaskDispatcher reviewTaskDispatcher,
-        ProjectPermissionService projectPermissionService) {
+        ProjectPermissionService projectPermissionService,
+        ReviewStateService reviewStateService) {
         this.codeReviewTaskMapper = codeReviewTaskMapper;
-        this.reviewTaskDispatcher = reviewTaskDispatcher;
         this.projectPermissionService = projectPermissionService;
+        this.reviewStateService = reviewStateService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -46,6 +46,21 @@ public class ReviewTaskManualRetryService {
         resetAndDispatch(task);
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    public void interrupt(Long taskId) {
+        CodeReviewTaskEntity task = codeReviewTaskMapper.selectById(taskId);
+        if (task == null) {
+            throw new DomainException("TASK_NOT_FOUND", "Review task not found");
+        }
+        projectPermissionService.requireProjectAccess(task.getProjectId());
+        if (!ReviewTaskLifecycle.RUNNING.name().equals(task.getStatus())) {
+            throw new DomainException("TASK_INTERRUPT_INVALID", "Only running review tasks can be stopped");
+        }
+        if (!reviewStateService.interruptRunningTask(taskId)) {
+            throw new DomainException("TASK_INTERRUPT_INVALID", "Review task is no longer running");
+        }
+    }
+
     public void resetAndDispatch(CodeReviewTaskEntity task) {
         if (task == null || task.getId() == null) {
             throw new DomainException("TASK_NOT_FOUND", "Review task not found");
@@ -54,6 +69,7 @@ public class ReviewTaskManualRetryService {
         task.setStatus(ReviewTaskLifecycle.PENDING.name());
         task.setRetryCount(0);
         task.setNextRetryAt(null);
+        task.setExecutionToken(null);
         task.setErrorCode(null);
         task.setErrorMessage(null);
         task.setStartedAt(null);
@@ -65,6 +81,7 @@ public class ReviewTaskManualRetryService {
             .set("status", ReviewTaskLifecycle.PENDING.name())
             .set("retry_count", 0)
             .set("next_retry_at", null)
+            .set("execution_token", null)
             .set("error_code", null)
             .set("error_message", null)
             .set("started_at", null)
@@ -72,13 +89,7 @@ public class ReviewTaskManualRetryService {
             .set("updated_at", now);
         codeReviewTaskMapper.update(null, updateWrapper);
 
-        reviewTaskDispatcher.dispatch(task.getId());
     }
-
-    public void dispatch(Long taskId) {
-        reviewTaskDispatcher.dispatch(taskId);
-    }
-
     public BatchRetryResponse batchRetry(List<Long> taskIds) {
         if (CollectionUtils.isEmpty(taskIds)) {
             throw new DomainException("TASK_IDS_REQUIRED", "Task ids are required");

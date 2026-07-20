@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class AppProperties {
 
     private Async async = new Async();
+    private ReviewWorker reviewWorker = new ReviewWorker();
     private ReviewContext reviewContext = new ReviewContext();
     private String platformUrl = "http://10.12.8.132:5173/reviews";
 
@@ -23,6 +24,14 @@ public class AppProperties {
 
     public void setAsync(Async async) {
         this.async = async;
+    }
+
+    public ReviewWorker getReviewWorker() {
+        return reviewWorker;
+    }
+
+    public void setReviewWorker(ReviewWorker reviewWorker) {
+        this.reviewWorker = reviewWorker;
     }
 
     public ReviewContext getReviewContext() {
@@ -69,6 +78,45 @@ public class AppProperties {
 
         public void setThreadNamePrefix(String threadNamePrefix) {
             this.threadNamePrefix = threadNamePrefix;
+        }
+    }
+
+    public static class ReviewWorker {
+        private boolean enabled = true;
+        private int workerCount = 8;
+        private long idleSleepMs = 5000L;
+        private long errorSleepMs = 10000L;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getWorkerCount() {
+            return workerCount;
+        }
+
+        public void setWorkerCount(int workerCount) {
+            this.workerCount = workerCount;
+        }
+
+        public long getIdleSleepMs() {
+            return idleSleepMs;
+        }
+
+        public void setIdleSleepMs(long idleSleepMs) {
+            this.idleSleepMs = idleSleepMs;
+        }
+
+        public long getErrorSleepMs() {
+            return errorSleepMs;
+        }
+
+        public void setErrorSleepMs(long errorSleepMs) {
+            this.errorSleepMs = errorSleepMs;
         }
     }
 
