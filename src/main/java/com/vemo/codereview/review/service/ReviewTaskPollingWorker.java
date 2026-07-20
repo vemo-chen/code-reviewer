@@ -67,6 +67,8 @@ public class ReviewTaskPollingWorker implements SmartInitializingSingleton {
         } catch (RuntimeException ex) {
             log.warn("database review task execution failed. taskId={}, message={}",
                 claimedTask.taskId, ex.getMessage());
+        } catch (Throwable error) {
+            markFatalTaskFailure(claimedTask, error);
         }
         return true;
     }
@@ -92,6 +94,25 @@ public class ReviewTaskPollingWorker implements SmartInitializingSingleton {
             }
         }
         return null;
+    }
+
+    private void markFatalTaskFailure(ClaimedTask claimedTask, Throwable error) {
+        String message = trimMessage(error == null ? null : error.getMessage());
+        log.error("database review task execution crashed. taskId={}, errorType={}, message={}",
+            claimedTask.taskId, error == null ? null : error.getClass().getName(), message);
+        boolean updated = reviewStateService.markRunningTaskFailedIfCurrent(
+            claimedTask.taskId, claimedTask.executionToken, "REVIEW_WORKER_FATAL_ERROR", message);
+        if (!updated) {
+            log.info("database review task fatal failure ignored because task is no longer current. taskId={}",
+                claimedTask.taskId);
+        }
+    }
+
+    private String trimMessage(String message) {
+        if (message == null) {
+            return null;
+        }
+        return message.length() > 500 ? message.substring(0, 500) : message;
     }
 
     private void startWorkers(AppProperties.ReviewWorker workerProperties) {

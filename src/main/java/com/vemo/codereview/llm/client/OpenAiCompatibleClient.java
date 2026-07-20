@@ -1,6 +1,5 @@
 package com.vemo.codereview.llm.client;
 
-import com.alibaba.fastjson.JSONObject;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.llm.model.ChatCompletionRequest;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
@@ -33,7 +32,11 @@ public class OpenAiCompatibleClient implements ChatModelClient {
     @Override
     public ChatCompletionResponse chatCompletion(ChatCompletionRequest request, LlmRuntimeConfig runtimeConfig) {
         try {
-            log.debug("request={}", JSONObject.toJSONString(request));
+            if (log.isDebugEnabled()) {
+                log.debug("llm request summary. model={}, maxTokens={}",
+                    request == null ? null : request.getModel(),
+                    request == null ? null : request.getMaxTokens());
+            }
             OkHttpClient okHttpClient = buildClient(runtimeConfig);
             Request httpRequest = new Request.Builder()
                 .url(getChatCompletionsUrl(runtimeConfig))

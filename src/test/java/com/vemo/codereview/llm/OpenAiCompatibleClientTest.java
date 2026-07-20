@@ -3,6 +3,7 @@ package com.vemo.codereview.llm;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vemo.codereview.llm.client.OpenAiCompatibleClient;
 import com.vemo.codereview.llm.model.ChatCompletionRequest;
@@ -11,6 +12,7 @@ import com.vemo.codereview.llm.model.LlmRuntimeConfig;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.List;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -71,6 +73,22 @@ class OpenAiCompatibleClientTest {
         assertEquals("/v1/chat/completions", recordedRequest.getPath());
     }
 
+    @Test
+    void shouldNotSerializeFullRequestForDebugLogging() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.addMixIn(FastjsonSensitiveRequest.class, IgnoreMessagesMixin.class);
+        OpenAiCompatibleClient openAiCompatibleClient = new OpenAiCompatibleClient(mapper);
+        LlmRuntimeConfig runtimeConfig = buildRuntimeConfig(mockWebServer.url("").toString());
+        mockWebServer.enqueue(new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("{\"id\":\"chatcmpl-1\",\"model\":\"deepseek-chat\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"ok\"}}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":1,\"total_tokens\":11}}"));
+
+        openAiCompatibleClient.chatCompletion(buildRequestWithFastjsonOnlyGetter(), runtimeConfig);
+
+        RecordedRequest recordedRequest = mockWebServer.takeRequest();
+        assertEquals("/v1/chat/completions", recordedRequest.getPath());
+    }
+
     private OpenAiCompatibleClient createClient() {
         return new OpenAiCompatibleClient(objectMapper);
     }
@@ -99,5 +117,29 @@ class OpenAiCompatibleClientTest {
             new ChatCompletionRequest.Message("user", "user prompt")
         ));
         return request;
+    }
+
+    private ChatCompletionRequest buildRequestWithFastjsonOnlyGetter() {
+        ChatCompletionRequest request = new FastjsonSensitiveRequest();
+        request.setModel("deepseek-chat");
+        request.setTemperature(0.1D);
+        request.setMaxTokens(2048);
+        request.setMessages(Arrays.asList(
+            new ChatCompletionRequest.Message("system", "system prompt"),
+            new ChatCompletionRequest.Message("user", "user prompt")
+        ));
+        return request;
+    }
+
+    private static class FastjsonSensitiveRequest extends ChatCompletionRequest {
+        @Override
+        public List<Message> getMessages() {
+            throw new AssertionError("full request debug serialization should not inspect message content");
+        }
+    }
+
+    private abstract static class IgnoreMessagesMixin {
+        @JsonIgnore
+        public abstract List<ChatCompletionRequest.Message> getMessages();
     }
 }

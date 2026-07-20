@@ -169,6 +169,26 @@ public class ReviewStateService {
         return updated;
     }
 
+    public boolean markRunningTaskFailedIfCurrent(Long taskId, String expectedExecutionToken,
+                                                  String errorCode, String errorMessage) {
+        if (taskId == null || !StringUtils.hasText(expectedExecutionToken)) {
+            return false;
+        }
+        Date now = new Date();
+        UpdateWrapper<CodeReviewTaskEntity> wrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        wrapper.eq("id", taskId)
+            .eq("status", ReviewTaskLifecycle.RUNNING.name())
+            .eq("execution_token", expectedExecutionToken)
+            .set("status", ReviewTaskLifecycle.FAILED.name())
+            .set("next_retry_at", null)
+            .set("execution_token", null)
+            .set("error_code", errorCode)
+            .set("error_message", errorMessage)
+            .set("finished_at", now)
+            .set("updated_at", now);
+        return codeReviewTaskMapper.update(null, wrapper) == 1;
+    }
+
     public boolean interruptRunningTask(Long taskId) {
         if (taskId == null) {
             return false;

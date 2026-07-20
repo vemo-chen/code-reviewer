@@ -107,6 +107,38 @@ class ReviewStateServiceTest {
         assertNull(failedTask.getExecutionToken());
     }
 
+    @Test
+    void shouldMarkRunningTaskFailedByCurrentExecutionToken() {
+        CodeReviewTaskEntity task = insertTask("RUNNING", 0, null);
+        task.setExecutionToken("current-token");
+        codeReviewTaskMapper.updateById(task);
+
+        assertTrue(reviewStateService.markRunningTaskFailedIfCurrent(
+            task.getId(), "current-token", "REVIEW_WORKER_FATAL_ERROR", "Java heap space"));
+
+        CodeReviewTaskEntity failedTask = codeReviewTaskMapper.selectById(task.getId());
+        assertEquals("FAILED", failedTask.getStatus());
+        assertEquals("REVIEW_WORKER_FATAL_ERROR", failedTask.getErrorCode());
+        assertEquals("Java heap space", failedTask.getErrorMessage());
+        assertNull(failedTask.getExecutionToken());
+        assertNull(failedTask.getNextRetryAt());
+    }
+
+    @Test
+    void shouldIgnoreFatalFailureFromInvalidExecutionToken() {
+        CodeReviewTaskEntity task = insertTask("RUNNING", 0, null);
+        task.setExecutionToken("current-token");
+        codeReviewTaskMapper.updateById(task);
+
+        assertFalse(reviewStateService.markRunningTaskFailedIfCurrent(
+            task.getId(), "old-token", "REVIEW_WORKER_FATAL_ERROR", "Java heap space"));
+
+        CodeReviewTaskEntity unchangedTask = codeReviewTaskMapper.selectById(task.getId());
+        assertEquals("RUNNING", unchangedTask.getStatus());
+        assertEquals("current-token", unchangedTask.getExecutionToken());
+        assertNull(unchangedTask.getErrorCode());
+    }
+
     private CodeReviewTaskEntity insertTask(String status, int retryCount, Date nextRetryAt) {
         Date now = new Date();
         CodeReviewTaskEntity task = new CodeReviewTaskEntity();
