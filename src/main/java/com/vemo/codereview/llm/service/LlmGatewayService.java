@@ -1,5 +1,8 @@
 package com.vemo.codereview.llm.service;
 
+import com.vemo.codereview.common.exception.DomainException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vemo.codereview.llm.model.ChatCompletionRequest;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
 import com.vemo.codereview.llm.model.LlmRuntimeConfig;
@@ -14,12 +17,15 @@ public class LlmGatewayService {
 
     private final LlmConfigResolverService llmConfigResolverService;
     private final ChatModelClientFactory chatModelClientFactory;
+    private final ObjectMapper objectMapper;
 
     public LlmGatewayService(
         LlmConfigResolverService llmConfigResolverService,
-        ChatModelClientFactory chatModelClientFactory) {
+        ChatModelClientFactory chatModelClientFactory,
+        ObjectMapper objectMapper) {
         this.llmConfigResolverService = llmConfigResolverService;
         this.chatModelClientFactory = chatModelClientFactory;
+        this.objectMapper = objectMapper;
     }
 
     public ChatCompletionResponse review(Long projectId, ReviewPromptPayload reviewPrompt) {
@@ -28,6 +34,19 @@ public class LlmGatewayService {
     }
 
     public ChatCompletionResponse review(LlmRuntimeConfig runtimeConfig, ReviewPromptPayload reviewPrompt) {
+        ChatCompletionRequest request = buildRequest(runtimeConfig, reviewPrompt);
+        return chatModelClientFactory.getClient(runtimeConfig.getProviderType()).chatCompletion(request, runtimeConfig);
+    }
+
+    public long requestBodyBytes(LlmRuntimeConfig runtimeConfig, ReviewPromptPayload reviewPrompt) {
+        try {
+            return objectMapper.writeValueAsBytes(buildRequest(runtimeConfig, reviewPrompt)).length;
+        } catch (JsonProcessingException ex) {
+            throw new DomainException("LLM_REQUEST_SERIALIZATION_ERROR", "Failed to serialize LLM request");
+        }
+    }
+
+    private ChatCompletionRequest buildRequest(LlmRuntimeConfig runtimeConfig, ReviewPromptPayload reviewPrompt) {
         ChatCompletionRequest request = new ChatCompletionRequest();
         request.setModel(runtimeConfig.getModelName());
         request.setTemperature(runtimeConfig.getTemperature() == null ? null : runtimeConfig.getTemperature().doubleValue());
@@ -35,7 +54,7 @@ public class LlmGatewayService {
         applyThinkingConfig(request, runtimeConfig);
         applyResponseFormat(request, runtimeConfig);
         request.setMessages(buildMessages(reviewPrompt));
-        return chatModelClientFactory.getClient(runtimeConfig.getProviderType()).chatCompletion(request, runtimeConfig);
+        return request;
     }
 
     private void applyThinkingConfig(ChatCompletionRequest request, LlmRuntimeConfig runtimeConfig) {

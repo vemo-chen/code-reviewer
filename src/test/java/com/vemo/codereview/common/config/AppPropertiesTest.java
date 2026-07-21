@@ -24,6 +24,7 @@ import org.springframework.test.context.TestPropertySource;
     "code-reviewer.app.review-worker.worker-count=3",
     "code-reviewer.app.review-worker.idle-sleep-ms=2000",
     "code-reviewer.app.review-worker.error-sleep-ms=4000",
+    "code-reviewer.app.review-context.max-request-body-bytes=2097152",
     "code-reviewer.app.platform-url=http://10.12.8.132:5173/reviews",
     "code-reviewer.gitlab.connect-timeout-ms=7000",
     "code-reviewer.gitlab.read-timeout-ms=12000"
@@ -53,6 +54,7 @@ class AppPropertiesTest {
         assertEquals(3, appProperties.getReviewWorker().getWorkerCount());
         assertEquals(2000L, appProperties.getReviewWorker().getIdleSleepMs());
         assertEquals(4000L, appProperties.getReviewWorker().getErrorSleepMs());
+        assertEquals(2097152, appProperties.getReviewContext().getMaxRequestBodyBytes());
         assertEquals("http://10.12.8.132:5173/reviews", appProperties.getPlatformUrl());
 
         assertEquals(7000, gitLabProperties.getConnectTimeoutMs());
@@ -61,11 +63,12 @@ class AppPropertiesTest {
 
     @Test
     void shouldProvideDefaultReviewContextProperties() {
-        assertEquals(20, appProperties.getReviewContext().getMaxFiles());
-        assertEquals(204800, appProperties.getReviewContext().getMaxFileBytes());
-        assertEquals(60000, appProperties.getReviewContext().getMaxTotalChars());
-        assertEquals(30, appProperties.getReviewContext().getDefaultContextLines());
-        assertEquals(60, appProperties.getReviewContext().getHighRiskContextLines());
-        assertEquals(5, appProperties.getReviewContext().getMaxSnippetsPerFile());
+        AppProperties defaults = new AppProperties();
+        assertEquals(20, defaults.getReviewContext().getMaxFiles());
+        assertEquals(204800, defaults.getReviewContext().getMaxFileBytes());
+        assertEquals(4194304, defaults.getReviewContext().getMaxRequestBodyBytes());
+        assertEquals(30, defaults.getReviewContext().getDefaultContextLines());
+        assertEquals(60, defaults.getReviewContext().getHighRiskContextLines());
+        assertEquals(5, defaults.getReviewContext().getMaxSnippetsPerFile());
     }
 }

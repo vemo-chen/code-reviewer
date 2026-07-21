@@ -12,6 +12,8 @@ export interface ReviewTaskQueryParams {
   targetTitle?: string;
   startDate?: string;
   endDate?: string;
+  sortField?: "updatedAt";
+  sortOrder?: "asc" | "desc";
 }
 
 export interface ReviewSubmitterOption {

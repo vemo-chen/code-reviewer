@@ -2,7 +2,7 @@
 <template>
   <section class="list-page">
     <section class="query-panel">
-      <el-form :inline="true" :model="queryForm">
+      <el-form :inline="true" :model="queryForm" @submit.prevent>
         <el-form-item>
           <el-select v-model="queryForm.projectId" placeholder="请选择项目" clearable filterable>
             <el-option
@@ -61,8 +61,8 @@
           />
         </el-form-item>
         <el-form-item class="actions">
-          <el-button type="warning" :loading="loading" @click="handleSearch">查询</el-button>
-          <el-button @click="resetFilters">重置</el-button>
+          <el-button type="warning" native-type="button" :loading="loading" @click="handleSearch">查询</el-button>
+          <el-button native-type="button" @click="resetFilters">重置</el-button>
         </el-form-item>
       </el-form>
     </section>
@@ -94,6 +94,7 @@
         :data="records"
         stripe
         @selection-change="handleSelectionChange"
+        @sort-change="handleSortChange"
       >
         <el-table-column type="selection" width="52" :selectable="isRowSelectable" />
         <el-table-column prop="projectName" label="项目" min-width="150" />
@@ -121,6 +122,11 @@
         <el-table-column label="提交时间" min-width="180">
           <template #default="{ row }">
             {{ formatDateTime(row.submitTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="updatedAt" label="更新时间" min-width="180" sortable="custom">
+          <template #default="{ row }">
+            {{ formatDateTime(row.updatedAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
@@ -438,6 +444,7 @@ interface ReviewRecordItem {
   retryCount: number;
   operatorName: string;
   submitTime: string | null;
+  updatedAt: string | null;
   riskLevel: string;
   summary: string;
   createdAt: string | null;
@@ -552,6 +559,11 @@ const pagination = reactive({
   total: 0
 });
 
+const sortState = reactive<{
+  sortField?: "updatedAt";
+  sortOrder?: "asc" | "desc";
+}>({});
+
 const getDefaultDateRange = (): string[] => {
   const end = new Date();
   const start = new Date();
@@ -601,7 +613,9 @@ const buildQueryParams = () => ({
     : undefined,
   endDate: Array.isArray(queryForm.dateRange) && queryForm.dateRange.length === 2
     ? queryForm.dateRange[1]
-    : undefined
+    : undefined,
+  sortField: sortState.sortField,
+  sortOrder: sortState.sortOrder
 });
 
 const clearSelection = () => {
@@ -621,6 +635,9 @@ const resetFilters = () => {
   queryForm.gitlabUsername = "";
   queryForm.targetTitle = "";
   queryForm.dateRange = getDefaultDateRange();
+  sortState.sortField = undefined;
+  sortState.sortOrder = undefined;
+  reviewTableRef.value?.clearSort?.();
   pagination.pageNo = 1;
   loadRecords();
 };
@@ -675,6 +692,18 @@ const handlePageSizeChange = () => {
 
 const handleSelectionChange = (rows: ReviewRecordItem[]) => {
   selectedRows.value = rows;
+};
+
+const handleSortChange = ({ prop, order }: { prop?: string; order: "ascending" | "descending" | null }) => {
+  if (prop === "updatedAt" && order) {
+    sortState.sortField = "updatedAt";
+    sortState.sortOrder = order === "ascending" ? "asc" : "desc";
+  } else {
+    sortState.sortField = undefined;
+    sortState.sortOrder = undefined;
+  }
+  pagination.pageNo = 1;
+  loadRecords();
 };
 
 const openDetail = async (row: ReviewRecordItem) => {

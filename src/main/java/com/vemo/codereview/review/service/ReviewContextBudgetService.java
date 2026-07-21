@@ -4,7 +4,6 @@ import com.vemo.codereview.common.config.AppProperties;
 import com.vemo.codereview.review.model.ReviewCodeSnippet;
 import com.vemo.codereview.review.model.ReviewFileContext;
 import java.util.ArrayList;
-import java.util.List;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -24,8 +23,8 @@ public class ReviewContextBudgetService {
         return appProperties.getReviewContext().getMaxFileBytes();
     }
 
-    public int maxTotalChars() {
-        return appProperties.getReviewContext().getMaxTotalChars();
+    public int maxRequestBodyBytes() {
+        return appProperties.getReviewContext().getMaxRequestBodyBytes();
     }
 
     public int maxSnippetsPerFile() {
@@ -41,21 +40,6 @@ public class ReviewContextBudgetService {
             fileContext.setSnippets(new ArrayList<ReviewCodeSnippet>(fileContext.getSnippets().subList(0, maxSnippets)));
             fileContext.setTruncated(Boolean.TRUE);
         }
-    }
-
-    public List<ReviewFileContext> applyTotalBudget(List<ReviewFileContext> contexts) {
-        List<ReviewFileContext> result = new ArrayList<ReviewFileContext>();
-        int total = 0;
-        for (ReviewFileContext context : contexts) {
-            int size = chars(context);
-            if (total + size > maxTotalChars()) {
-                context.setTruncated(Boolean.TRUE);
-                break;
-            }
-            result.add(context);
-            total += size;
-        }
-        return result;
     }
 
     public int chars(ReviewFileContext context) {

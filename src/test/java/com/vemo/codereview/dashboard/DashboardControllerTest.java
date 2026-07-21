@@ -204,6 +204,57 @@ class DashboardControllerTest {
     }
 
     @Test
+    void shouldOrderReviewTaskPageByUpdatedAtDesc() throws Exception {
+        Date laterUpdatedAt = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse("2026-04-04 10:20:30");
+        Date earlierSubmitTime = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse("2026-04-01 08:00:00");
+
+        CodeReviewEventEntity secondEvent = new CodeReviewEventEntity();
+        secondEvent.setSourcePlatform("gitlab");
+        secondEvent.setEventType("push");
+        secondEvent.setProjectId(1001L);
+        secondEvent.setProjectName("code-reviewer");
+        secondEvent.setObjectId("sha-003");
+        secondEvent.setObjectType("commit");
+        secondEvent.setOperatorId("u003");
+        secondEvent.setOperatorName("cindy");
+        secondEvent.setSubmitTime(earlierSubmitTime);
+        secondEvent.setIdempotentKey("dashboard-1001-sha-003");
+        secondEvent.setPayloadJson("{\"commits\":[{\"timestamp\":\"2026-04-01T08:00:00+08:00\"}]}");
+        secondEvent.setStatus("TASK_CREATED");
+        secondEvent.setCreatedAt(laterUpdatedAt);
+        secondEvent.setUpdatedAt(laterUpdatedAt);
+        codeReviewEventMapper.insert(secondEvent);
+
+        CodeReviewTaskEntity secondTask = new CodeReviewTaskEntity();
+        secondTask.setEventId(secondEvent.getId());
+        secondTask.setTaskType("PUSH_REVIEW");
+        secondTask.setSourcePlatform("gitlab");
+        secondTask.setProjectId(1001L);
+        secondTask.setTargetId("sha-003");
+        secondTask.setTargetTitle("Recently updated task");
+        secondTask.setStatus("FAILED");
+        secondTask.setRetryCount(1);
+        secondTask.setCreatedAt(earlierSubmitTime);
+        secondTask.setFinishedAt(null);
+        secondTask.setUpdatedAt(laterUpdatedAt);
+        codeReviewTaskMapper.insert(secondTask);
+
+        mockMvc.perform(get("/api/dashboard/review-tasks")
+                .header("Authorization", adminToken)
+                .param("pageNo", "1")
+                .param("pageSize", "10")
+                .param("sortField", "updatedAt")
+                .param("sortOrder", "desc"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.total").value(2))
+            .andExpect(jsonPath("$.data.records[0].targetTitle").value("Recently updated task"))
+            .andExpect(jsonPath("$.data.records[0].updatedAt").value("2026-04-04T10:20:30.000+08:00"))
+            .andExpect(jsonPath("$.data.records[1].targetTitle").value("Add dashboard apis"))
+            .andExpect(jsonPath("$.data.records[1].updatedAt").value("2026-04-03T00:00:00.000+08:00"));
+    }
+
+    @Test
     void shouldReturnReviewTaskDetailWithGitLabSubmitTime() throws Exception {
         mockMvc.perform(get("/api/dashboard/review-tasks/" + reviewTaskId)
                 .header("Authorization", adminToken))

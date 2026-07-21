@@ -94,8 +94,32 @@ class GitLabMergeRequestLifecycleTest {
         assertNull(task.getExecutionToken());
     }
 
+    @Test
+    void shouldSyncDisplayFieldsWithoutResettingTaskWhenMergeRequestCodeIsUnchanged() throws Exception {
+        deliver("open", "opened", "c1", null, "creator", "Creator", "Original title");
+        CodeReviewTaskEntity runningTask = taskMapper.selectOne(new QueryWrapper<CodeReviewTaskEntity>());
+        runningTask.setStatus("SUCCESS");
+        runningTask.setExecutionToken("finished-token");
+        taskMapper.updateById(runningTask);
+
+        deliver("update", "opened", "c1", null, "editor", "Editor", "Updated title");
+
+        assertEquals(Long.valueOf(1L), eventMapper.selectCount(new QueryWrapper<CodeReviewEventEntity>()));
+        assertEquals(Long.valueOf(1L), taskMapper.selectCount(new QueryWrapper<CodeReviewTaskEntity>()));
+        CodeReviewTaskEntity task = taskMapper.selectOne(new QueryWrapper<CodeReviewTaskEntity>());
+        assertNotNull(task);
+        assertEquals("Updated title", task.getTargetTitle());
+        assertEquals("SUCCESS", task.getStatus());
+        assertEquals("finished-token", task.getExecutionToken());
+    }
+
     private void deliver(String action, String state, String head, String mergedSha,
                          String username, String name) throws Exception {
+        deliver(action, state, head, mergedSha, username, name, "Review lifecycle");
+    }
+
+    private void deliver(String action, String state, String head, String mergedSha,
+                         String username, String name, String title) throws Exception {
         String mergeField = mergedSha == null ? "" : ",\"merge_commit_sha\":\"" + mergedSha + "\"";
         String payload = "{"
             + "\"object_kind\":\"merge_request\","
@@ -103,7 +127,7 @@ class GitLabMergeRequestLifecycleTest {
             + "\"user\":{\"id\":12,\"username\":\"" + username + "\",\"name\":\"" + name + "\"},"
             + "\"project\":{\"id\":1001,\"name\":\"code-reviewer\"},"
             + "\"object_attributes\":{"
-            + "\"id\":501,\"iid\":7,\"title\":\"Review lifecycle\","
+            + "\"id\":501,\"iid\":7,\"title\":\"" + title + "\","
             + "\"action\":\"" + action + "\",\"state\":\"" + state + "\","
             + "\"source_branch\":\"source-cr\",\"target_branch\":\"test-cr\","
             + "\"last_commit\":{\"id\":\"" + head + "\"}" + mergeField

@@ -34,6 +34,8 @@ code-reviewer:
       worker-count: 8
       idle-sleep-ms: 5000
       error-sleep-ms: 10000
+    review-context:
+      max-request-body-bytes: 4194304
   gitlab:
     connect-timeout-ms: 5000
     read-timeout-ms: 15000

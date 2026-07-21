@@ -18,4 +18,6 @@ public class ReviewTaskQueryRequest {
     private String targetTitle;
     private String startDate;
     private String endDate;
+    private String sortField;
+    private String sortOrder;
 }

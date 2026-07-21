@@ -1,11 +1,13 @@
 package com.vemo.codereview.llm;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vemo.codereview.llm.client.ChatModelClient;
 import com.vemo.codereview.llm.model.ChatCompletionRequest;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
@@ -24,7 +26,7 @@ class LlmGatewayServiceTest {
         LlmConfigResolverService resolver = mock(LlmConfigResolverService.class);
         ChatModelClientFactory factory = mock(ChatModelClientFactory.class);
         ChatModelClient client = mock(ChatModelClient.class);
-        LlmGatewayService service = new LlmGatewayService(resolver, factory);
+        LlmGatewayService service = new LlmGatewayService(resolver, factory, new ObjectMapper());
         LlmRuntimeConfig config = new LlmRuntimeConfig();
         config.setProviderCode("OPENAI");
         config.setProviderType("OPENAI_COMPATIBLE");
@@ -41,5 +43,25 @@ class LlmGatewayServiceTest {
             org.mockito.ArgumentCaptor.forClass(ChatCompletionRequest.class);
         verify(client).chatCompletion(requestCaptor.capture(), org.mockito.ArgumentMatchers.same(config));
         assertEquals("json_object", requestCaptor.getValue().getResponseFormat().getType());
+    }
+
+    @Test
+    void shouldEstimateSerializedRequestBodyBytes() {
+        LlmConfigResolverService resolver = mock(LlmConfigResolverService.class);
+        ChatModelClientFactory factory = mock(ChatModelClientFactory.class);
+        LlmGatewayService service = new LlmGatewayService(resolver, factory, new ObjectMapper());
+        LlmRuntimeConfig config = new LlmRuntimeConfig();
+        config.setProviderCode("OPENAI");
+        config.setProviderType("OPENAI_COMPATIBLE");
+        config.setModelName("gpt-5.5");
+        config.setMaxTokens(1024);
+        config.setTemperature(new BigDecimal("0.1"));
+        ReviewPromptPayload prompt = new ReviewPromptPayload();
+        prompt.setSystemPrompt("system");
+        prompt.setUserPrompt("user");
+
+        long bytes = service.requestBodyBytes(config, prompt);
+
+        assertTrue(bytes > "systemuser".length());
     }
 }

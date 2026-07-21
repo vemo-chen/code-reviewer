@@ -33,6 +33,7 @@ public class ReviewTaskPageResponse {
         private String summary;
         private Date submitTime;
         private Date createdAt;
+        private Date updatedAt;
         private Date finishedAt;
     }
 }

@@ -21,12 +21,14 @@ public class ReviewBatchExecutor {
     private final PromptBuilderService promptBuilderService;
     private final LlmGatewayService gatewayService;
     private final ReviewResponseParser responseParser;
+    private final ReviewContextBudgetService budgetService;
 
     public ReviewBatchExecutor(PromptBuilderService promptBuilderService, LlmGatewayService gatewayService,
-                               ReviewResponseParser responseParser) {
+                               ReviewResponseParser responseParser, ReviewContextBudgetService budgetService) {
         this.promptBuilderService = promptBuilderService;
         this.gatewayService = gatewayService;
         this.responseParser = responseParser;
+        this.budgetService = budgetService;
     }
 
     public List<ReviewBatchOutput> execute(Long taskId, Long projectId, ReviewExecutionContext context,
@@ -55,6 +57,10 @@ public class ReviewBatchExecutor {
                 result.addAll(executeRecovering(taskId, context, split.getRight(), config, batchPath + ".2", splitDepth + 1));
                 return result;
             }
+            if (isInputSizeFailure(ex)) {
+                throw new DomainException("REVIEW_SINGLE_UNIT_REQUEST_TOO_LARGE",
+                    "Single review unit exceeded the configured LLM request body limit");
+            }
             try {
                 return Collections.singletonList(executeOnce(taskId, context, batch, config,
                     ReviewPromptMode.COMPACT, batchPath + ".compact", splitDepth));
@@ -70,16 +76,37 @@ public class ReviewBatchExecutor {
 
     private boolean isSplittableFailure(DomainException ex) {
         if ("REVIEW_RESULT_TRUNCATED".equals(ex.getCode())) return true;
+        if ("REVIEW_REQUEST_BODY_TOO_LARGE".equals(ex.getCode())) return true;
         if (!"LLM_API_ERROR".equals(ex.getCode())) return false;
         String message = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
         return message.contains("context") || message.contains("token") || message.contains("prompt")
-            || message.contains("input") || message.contains("length") || message.contains("too large");
+            || message.contains("input") || message.contains("length") || message.contains("too large")
+            || message.contains("413") || message.contains("requesttoolarge") || message.contains("exceeds maximum");
+    }
+
+    private boolean isInputSizeFailure(DomainException ex) {
+        if ("REVIEW_REQUEST_BODY_TOO_LARGE".equals(ex.getCode())) return true;
+        if (!"LLM_API_ERROR".equals(ex.getCode())) return false;
+        String message = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
+        return message.contains("context") || message.contains("prompt") || message.contains("input")
+            || message.contains("413") || message.contains("requesttoolarge")
+            || message.contains("too large") || message.contains("exceeds maximum");
     }
 
     private ReviewBatchOutput executeOnce(Long taskId, ReviewExecutionContext context, ReviewExecutionBatch batch,
                                           LlmRuntimeConfig config, ReviewPromptMode mode,
                                           String batchPath, int splitDepth) {
         ReviewPromptPayload prompt = promptBuilderService.build(context, batch, 1, 1, mode);
+        long requestBodyBytes = gatewayService.requestBodyBytes(config, prompt);
+        int maxRequestBodyBytes = budgetService.maxRequestBodyBytes();
+        if (maxRequestBodyBytes > 0 && requestBodyBytes > maxRequestBodyBytes) {
+            log.warn("review batch request body exceeds budget. taskId={}, model={}, batchPath={}, unitCount={}, "
+                    + "promptMode={}, requestBodyBytes={}, maxRequestBodyBytes={}, splitDepth={}",
+                taskId, config.getModelName(), batchPath, batch.getUnits().size(), mode,
+                requestBodyBytes, maxRequestBodyBytes, splitDepth);
+            throw new DomainException("REVIEW_REQUEST_BODY_TOO_LARGE",
+                "Review request body exceeds configured LLM request body limit");
+        }
         long start = System.nanoTime();
         ChatCompletionResponse response = gatewayService.review(config, prompt);
         long latency = (System.nanoTime() - start) / 1_000_000L;

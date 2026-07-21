@@ -13,6 +13,7 @@ import com.vemo.codereview.review.service.ReviewResultPersistenceService;
 import com.vemo.codereview.review.service.ReviewStateService;
 import com.vemo.codereview.webhook.model.StandardReviewEvent;
 import java.util.Date;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,13 +49,16 @@ public class MergeRequestEventService {
             && !incoming.getMrHeadSha().equals(existing.getMrHeadSha());
         updateEvent(existing, incoming);
         eventMapper.updateById(existing);
-        if (!headChanged) {
-            return;
-        }
         CodeReviewTaskEntity task = taskMapper.selectOne(new QueryWrapper<CodeReviewTaskEntity>()
             .eq("event_id", existing.getId()).last("FOR UPDATE"));
         if (task == null) {
-            createTask(existing, incoming, project);
+            if (headChanged) {
+                createTask(existing, incoming, project);
+            }
+            return;
+        }
+        if (!headChanged) {
+            syncTaskDisplayFields(task, incoming);
             return;
         }
         resultPersistenceService.deleteByTaskId(task.getId());
@@ -120,6 +124,24 @@ public class MergeRequestEventService {
             existing.setOperatorId(incoming.getOperatorId());
             existing.setOperatorName(incoming.getOperatorName());
         }
+    }
+
+    private void syncTaskDisplayFields(CodeReviewTaskEntity task, StandardReviewEvent incoming) {
+        boolean changed = !Objects.equals(task.getTargetId(), incoming.getTargetId())
+            || !Objects.equals(task.getTargetTitle(), incoming.getTargetTitle());
+        if (!changed) {
+            return;
+        }
+        Date now = new Date();
+        UpdateWrapper<CodeReviewTaskEntity> wrapper = new UpdateWrapper<CodeReviewTaskEntity>();
+        wrapper.eq("id", task.getId())
+            .set("target_id", incoming.getTargetId())
+            .set("target_title", incoming.getTargetTitle())
+            .set("updated_at", now);
+        taskMapper.update(null, wrapper);
+        task.setTargetId(incoming.getTargetId());
+        task.setTargetTitle(incoming.getTargetTitle());
+        task.setUpdatedAt(now);
     }
 
     private void resetTask(CodeReviewTaskEntity task, StandardReviewEvent incoming) {

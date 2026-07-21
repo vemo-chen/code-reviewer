@@ -123,7 +123,7 @@ public class AppProperties {
     public static class ReviewContext {
         private int maxFiles = 20;
         private int maxFileBytes = 204800;
-        private int maxTotalChars = 60000;
+        private int maxRequestBodyBytes = 4194304;
         private int defaultContextLines = 30;
         private int highRiskContextLines = 60;
         private int maxSnippetsPerFile = 5;
@@ -144,12 +144,12 @@ public class AppProperties {
             this.maxFileBytes = maxFileBytes;
         }
 
-        public int getMaxTotalChars() {
-            return maxTotalChars;
+        public int getMaxRequestBodyBytes() {
+            return maxRequestBodyBytes;
         }
 
-        public void setMaxTotalChars(int maxTotalChars) {
-            this.maxTotalChars = maxTotalChars;
+        public void setMaxRequestBodyBytes(int maxRequestBodyBytes) {
+            this.maxRequestBodyBytes = maxRequestBodyBytes;
         }
 
         public int getDefaultContextLines() {

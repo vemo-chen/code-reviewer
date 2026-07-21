@@ -106,8 +106,7 @@ public class DashboardQueryService {
         }
 
         QueryWrapper<CodeReviewTaskEntity> pageWrapper = buildReviewTaskWrapper(request, taskIds, accessibleProjectIds);
-        pageWrapper.last(
-            "ORDER BY (SELECT e.submit_time FROM code_review_event e WHERE e.id = code_review_task.event_id) DESC, id DESC");
+        pageWrapper.last(resolveReviewTaskOrderBy(request));
 
         Page<CodeReviewTaskEntity> page = codeReviewTaskMapper.selectPage(new Page<CodeReviewTaskEntity>(pageNo, pageSize), pageWrapper);
         List<CodeReviewTaskEntity> tasks = page.getRecords();
@@ -125,6 +124,18 @@ public class DashboardQueryService {
         response.setTotal(page.getTotal());
         response.setRecords(records);
         return response;
+    }
+
+    private String resolveReviewTaskOrderBy(ReviewTaskQueryRequest request) {
+        String sortField = request.getSortField();
+        if (StringUtils.hasText(sortField)) {
+            String normalizedSortField = sortField.trim();
+            if ("updatedAt".equalsIgnoreCase(normalizedSortField) || "updated_at".equalsIgnoreCase(normalizedSortField)) {
+                String direction = "asc".equalsIgnoreCase(request.getSortOrder()) ? "ASC" : "DESC";
+                return "ORDER BY updated_at " + direction + ", id " + direction;
+            }
+        }
+        return "ORDER BY (SELECT e.submit_time FROM code_review_event e WHERE e.id = code_review_task.event_id) DESC, id DESC";
     }
 
     private QueryWrapper<CodeReviewTaskEntity> buildReviewTaskWrapper(
@@ -653,6 +664,7 @@ public class DashboardQueryService {
         item.setSummary(reviewResult != null ? reviewResult.getSummary() : null);
         item.setSubmitTime(resolveSubmitTime(event));
         item.setCreatedAt(task.getCreatedAt());
+        item.setUpdatedAt(task.getUpdatedAt());
         item.setFinishedAt(task.getFinishedAt());
         return item;
     }

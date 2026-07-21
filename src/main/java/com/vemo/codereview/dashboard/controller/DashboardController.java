@@ -46,7 +46,9 @@ public class DashboardController {
         @RequestParam(required = false) String operatorName,
         @RequestParam(required = false) String targetTitle,
         @RequestParam(required = false) String startDate,
-        @RequestParam(required = false) String endDate) {
+        @RequestParam(required = false) String endDate,
+        @RequestParam(required = false) String sortField,
+        @RequestParam(required = false) String sortOrder) {
         ReviewTaskQueryRequest request = new ReviewTaskQueryRequest();
         request.setPageNo(pageNo);
         request.setPageSize(pageSize);
@@ -59,6 +61,8 @@ public class DashboardController {
         request.setTargetTitle(targetTitle);
         request.setStartDate(startDate);
         request.setEndDate(endDate);
+        request.setSortField(sortField);
+        request.setSortOrder(sortOrder);
         return ApiResponse.success(dashboardQueryService.pageReviewTasks(request));
     }
 
