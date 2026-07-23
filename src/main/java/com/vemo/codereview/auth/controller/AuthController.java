@@ -3,6 +3,7 @@ package com.vemo.codereview.auth.controller;
 import com.vemo.codereview.auth.model.LoginRequest;
 import com.vemo.codereview.auth.model.LoginResponse;
 import com.vemo.codereview.auth.model.ChangePasswordRequest;
+import com.vemo.codereview.auth.model.RegisterRequest;
 import com.vemo.codereview.auth.service.AuthService;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.common.model.ApiResponse;
@@ -29,6 +30,16 @@ public class AuthController {
     public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody LoginRequest request) {
         try {
             return ResponseEntity.ok(ApiResponse.success(authService.login(request)));
+        } catch (DomainException ex) {
+            return ResponseEntity.status(resolveStatus(ex))
+                .body(ApiResponse.failure(ex.getCode(), ex.getMessage()));
+        }
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<ApiResponse<LoginResponse>> register(@RequestBody RegisterRequest request) {
+        try {
+            return ResponseEntity.ok(ApiResponse.success(authService.register(request)));
         } catch (DomainException ex) {
             return ResponseEntity.status(resolveStatus(ex))
                 .body(ApiResponse.failure(ex.getCode(), ex.getMessage()));

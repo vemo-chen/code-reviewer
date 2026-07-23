@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import AdminLayout from "../layouts/AdminLayout.vue";
 import LoginView from "../views/login/LoginView.vue";
+import RegisterView from "../views/login/RegisterView.vue";
 import DashboardView from "../views/dashboard/DashboardView.vue";
 import LlmModelListView from "../views/llm/LlmModelListView.vue";
 import ManualView from "../views/manual/ManualView.vue";
@@ -17,6 +18,12 @@ const router = createRouter({
       name: "login",
       component: LoginView,
       meta: { public: true, title: "登录" }
+    },
+    {
+      path: "/register",
+      name: "register",
+      component: RegisterView,
+      meta: { public: true, title: "注册" }
     },
     {
       path: "/manual",
@@ -78,7 +85,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.public) {
-    if (to.name === "login" && authStore.isLoggedIn) {
+    if ((to.name === "login" || to.name === "register") && authStore.isLoggedIn) {
       return { name: "dashboard" };
     }
     return true;

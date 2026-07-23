@@ -5,6 +5,13 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface RegisterPayload {
+  username: string;
+  displayName: string;
+  password: string;
+  gitlabUsername?: string;
+}
+
 export interface AuthUser {
   token: string;
   userId: number;
@@ -19,6 +26,8 @@ export interface ChangePasswordPayload {
 }
 
 export const loginApi = (payload: LoginPayload) => http.post("/auth/login", payload);
+
+export const registerApi = (payload: RegisterPayload) => http.post("/auth/register", payload);
 
 export const currentUserApi = () => http.get("/auth/me");
 

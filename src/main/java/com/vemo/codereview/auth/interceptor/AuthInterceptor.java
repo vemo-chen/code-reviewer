@@ -21,6 +21,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     private static final List<String> EXCLUDE_PATHS = Arrays.asList(
         "/api/auth/login",
+        "/api/auth/register",
         "/api/webhooks/**",
         "/error"
     );

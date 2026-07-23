@@ -5,9 +5,12 @@ import com.vemo.codereview.auth.model.AuthSession;
 import com.vemo.codereview.auth.model.ChangePasswordRequest;
 import com.vemo.codereview.auth.model.LoginRequest;
 import com.vemo.codereview.auth.model.LoginResponse;
+import com.vemo.codereview.auth.model.RegisterRequest;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.user.entity.UserEntity;
 import com.vemo.codereview.user.mapper.UserMapper;
+import java.util.Date;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -38,6 +41,44 @@ public class AuthService {
         }
         if (!"ENABLE".equalsIgnoreCase(user.getStatus())) {
             throw new DomainException("AUTH_FORBIDDEN", "User is disabled");
+        }
+
+        String token = authTokenService.createToken(user);
+        return buildLoginResponse(token, user);
+    }
+
+    public LoginResponse register(RegisterRequest request) {
+        if (request == null
+            || !StringUtils.hasText(request.getUsername())
+            || !StringUtils.hasText(request.getDisplayName())
+            || !StringUtils.hasText(request.getPassword())) {
+            throw new DomainException("AUTH_PARAM_INVALID", "Username, display name and password are required");
+        }
+
+        String username = request.getUsername().trim();
+        String displayName = request.getDisplayName().trim();
+        String password = request.getPassword().trim();
+        if (password.length() < 4) {
+            throw new DomainException("AUTH_PASSWORD_INVALID", "Password must be at least 4 characters");
+        }
+        if (findByUsername(username) != null) {
+            throw new DomainException("AUTH_USERNAME_DUPLICATE", "用户名已存在");
+        }
+
+        Date now = new Date();
+        UserEntity user = new UserEntity();
+        user.setUsername(username);
+        user.setDisplayName(displayName);
+        user.setGitlabUsername(normalizeGitlabUsername(request.getGitlabUsername()));
+        user.setPasswordHash(passwordHashService.sha256(password));
+        user.setRole("USER");
+        user.setStatus("ENABLE");
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException ex) {
+            throw new DomainException("AUTH_USERNAME_DUPLICATE", "用户名已存在");
         }
 
         String token = authTokenService.createToken(user);
@@ -95,6 +136,13 @@ public class AuthService {
         QueryWrapper<UserEntity> wrapper = new QueryWrapper<UserEntity>();
         wrapper.eq("username", username).last("limit 1");
         return userMapper.selectOne(wrapper);
+    }
+
+    private String normalizeGitlabUsername(String gitlabUsername) {
+        if (!StringUtils.hasText(gitlabUsername)) {
+            return null;
+        }
+        return gitlabUsername.trim();
     }
 
     private LoginResponse buildLoginResponse(String token, UserEntity user) {

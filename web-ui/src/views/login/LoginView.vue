@@ -16,6 +16,10 @@
         </label>
         <button type="submit" :disabled="submitting">{{ submitting ? "登录中..." : "进入系统" }}</button>
       </form>
+      <div class="login-switch">
+        <span>还没有账号？</span>
+        <button type="button" @click="goRegister">注册账号</button>
+      </div>
     </section>
   </div>
 </template>
@@ -62,6 +66,11 @@ const handleLogin = async () => {
   } finally {
     submitting.value = false;
   }
+};
+
+const goRegister = () => {
+  const query = typeof route.query.redirect === "string" ? { redirect: route.query.redirect } : undefined;
+  router.push({ name: "register", query });
 };
 </script>
 
@@ -159,5 +168,35 @@ h1 {
 .login-form button:disabled {
   cursor: not-allowed;
   opacity: 0.72;
+}
+
+.login-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+  color: var(--cr-text-soft);
+  font-size: 14px;
+}
+
+.login-switch button {
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: var(--cr-primary-deep);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .login-shell {
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .login-panel {
+    padding: 30px 24px;
+  }
 }
 </style>
