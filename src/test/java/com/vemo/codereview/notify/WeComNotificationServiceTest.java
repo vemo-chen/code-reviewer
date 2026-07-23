@@ -13,6 +13,7 @@ import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
@@ -136,6 +137,40 @@ class WeComNotificationServiceTest {
     }
 
     @Test
+    void shouldCapMarkdownContentAtWeComLimitBeforeSending() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("{\"errcode\":0,\"errmsg\":\"ok\"}"));
+
+        CodeReviewResultEntity result = new CodeReviewResultEntity();
+        result.setRiskLevel("HIGH");
+        result.setSummary("summary-" + repeat("x", 5000));
+        result.setBriefSummary("brief-" + repeat("y", 1200));
+        result.setScoreReason("score-" + repeat("z", 1200));
+        result.setAdvice("advice-" + repeat("a", 1200));
+
+        CodeReviewCommentEntity comment = new CodeReviewCommentEntity();
+        comment.setFilePath("src/main/java/com/vemo/VeryLongFile.java");
+        comment.setLineNo(42);
+        comment.setSeverity("HIGH");
+        comment.setCategory("Project hard rule");
+        comment.setMessage("message-" + repeat("m", 1600));
+        comment.setSuggestion("suggestion-" + repeat("s", 1600));
+
+        boolean notified = weComNotificationService.notifyReviewResult(
+            1001L, new ReviewNotificationMetadata(), result, Arrays.asList(comment),
+            mockWebServer.url("/send?key=test").toString());
+
+        RecordedRequest request = mockWebServer.takeRequest();
+        JsonNode payload = new ObjectMapper().readTree(request.getBody().readUtf8());
+        String markdown = payload.get("markdown").get("content").asText();
+
+        assertTrue(notified);
+        assertTrue(markdown.getBytes(StandardCharsets.UTF_8).length <= 4096);
+        assertTrue(markdown.contains("内容过长已截断"));
+    }
+
+    @Test
     void shouldRetryWhenWeComReturnsBusinessError() throws Exception {
         mockWebServer.enqueue(new MockResponse()
             .setHeader("Content-Type", "application/json")
@@ -152,5 +187,13 @@ class WeComNotificationServiceTest {
 
         assertTrue(notified);
         assertEquals(2, mockWebServer.getRequestCount());
+    }
+
+    private static String repeat(String value, int count) {
+        StringBuilder builder = new StringBuilder(value.length() * count);
+        for (int i = 0; i < count; i++) {
+            builder.append(value);
+        }
+        return builder.toString();
     }
 }

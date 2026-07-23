@@ -6,12 +6,15 @@ import com.vemo.codereview.notify.model.ReviewNotificationMetadata;
 import com.vemo.codereview.notify.model.WeComMarkdownPayload;
 import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
 public class WeComNotificationService {
+
+    private static final int WECOM_MARKDOWN_CONTENT_MAX_BYTES = 4096;
 
     private final WeComWebhookClient weComWebhookClient;
     private final AppProperties appProperties;
@@ -155,7 +158,40 @@ public class WeComNotificationService {
             builder.append("**总结**\n");
             builder.append(safe(result.getSummary()));
         }
-        return builder.toString();
+        return capMarkdownContent(builder.toString());
+    }
+
+    private String capMarkdownContent(String content) {
+        if (content == null || utf8Length(content) <= WECOM_MARKDOWN_CONTENT_MAX_BYTES) {
+            return content;
+        }
+        String platformUrl = appProperties.getPlatformUrl();
+        String suffix = "\n\n> 内容过长已截断，请到[代码审查平台](" + platformUrl + ")查看完整结果。";
+        int suffixLength = utf8Length(suffix);
+        if (suffixLength >= WECOM_MARKDOWN_CONTENT_MAX_BYTES) {
+            suffix = "\n\n> 内容过长已截断。";
+            suffixLength = utf8Length(suffix);
+        }
+
+        int contentBudget = WECOM_MARKDOWN_CONTENT_MAX_BYTES - suffixLength;
+        StringBuilder truncated = new StringBuilder();
+        int used = 0;
+        for (int offset = 0; offset < content.length();) {
+            int codePoint = content.codePointAt(offset);
+            String codePointText = new String(Character.toChars(codePoint));
+            int codePointLength = utf8Length(codePointText);
+            if (used + codePointLength > contentBudget) {
+                break;
+            }
+            truncated.append(codePointText);
+            used += codePointLength;
+            offset += Character.charCount(codePoint);
+        }
+        return truncated.append(suffix).toString();
+    }
+
+    private int utf8Length(String value) {
+        return value.getBytes(StandardCharsets.UTF_8).length;
     }
 
     private String resolveDisplayedSummary(CodeReviewResultEntity result) {
