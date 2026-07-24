@@ -21,6 +21,10 @@ public class UserPageResponse {
         private Long id;
         private String username;
         private String displayName;
+        private String email;
+        private String employeeCode;
+        private String authSource;
+        private Boolean passwordInitialized;
         private String gitlabUsername;
         private String role;
         private String status;

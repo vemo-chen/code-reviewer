@@ -9,6 +9,7 @@ public class UserUpsertRequest {
 
     private String username;
     private String displayName;
+    private String email;
     private String gitlabUsername;
     private String password;
     private String role;

@@ -7,7 +7,7 @@ DOCKERFILE_PATH="${ROOT_DIR}/deploy/Dockerfile.backend"
 OUTPUT_DIR="${OUTPUT_DIR:-${ROOT_DIR}/dist-images}"
 IMAGE_REPO="${IMAGE_REPO:-chcnav/code-reviewer-backend}"
 MAVEN_CMD="${MAVEN_CMD:-}"
-JAR_PATH="${ROOT_DIR}/target/code-reviewer-0.0.1-SNAPSHOT.jar"
+JAR_PATH="${ROOT_DIR}/target/code-reviewer-1.4.0.jar"
 IMAGE_TAG="${IMAGE_TAG:-$(date +%Y%m%d%H%M)}"
 DOCKER_PLATFORM="${DOCKER_PLATFORM:-}"
 

@@ -5,6 +5,7 @@ export interface UserQueryParams {
   pageSize?: number;
   username?: string;
   displayName?: string;
+  email?: string;
   gitlabUsername?: string;
   role?: string;
   status?: string;
@@ -13,6 +14,7 @@ export interface UserQueryParams {
 export interface UserUpsertPayload {
   username: string;
   displayName: string;
+  email: string;
   gitlabUsername?: string;
   password?: string;
   role: string;

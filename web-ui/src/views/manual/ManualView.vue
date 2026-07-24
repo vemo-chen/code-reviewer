@@ -17,18 +17,19 @@
         <div class="version-card-head">
           <div class="version-card-title-group">
             <h3 class="version-card-title">版本说明</h3>
-            <span class="current-version">当前版本：V1.3</span>
+            <span class="current-version">当前版本：V1.4</span>
           </div>
           <button type="button" class="version-history-link" @click="historyDialogVisible = true">查看历史版本</button>
         </div>
         <ul class="version-list">
           <li>
-            <strong>V1.3</strong>
+            <strong>V1.4</strong>
             <ol>
-              <li>优化 GitLab Merge Request 审查策略，支持合并前对源分支 Diff 进行审查。</li>
-              <li>优化 GitLab Push 审查流程，合并单次 Push 产生的审查记录。</li>
-              <li>优化大批量代码变更审查，按语义单元拆分审查批次，减少长 Diff 截断和内容遗漏。</li>
-              <li>登录页启用全屏 AI Code Reviewer 背景，并优化登录框布局。</li>
+              <li>新增 SSO 登录能力，支持通过公司账号登录，并按邮箱关联已有平台账号。</li>
+              <li>开放普通成员自助注册，注册后默认以普通成员权限进入系统。</li>
+              <li>平台账号支持邮箱登录，并可在个人信息中查看账号、邮箱、工号和账号来源。</li>
+              <li>新增平台密码设置能力，SSO 自动创建的账号可在个人信息中设置平台密码。</li>
+              <li>个人信息支持维护 GitLab 用户名，用于关联 GitLab 提交、合并请求和审查记录。</li>
             </ol>
           </li>
         </ul>
@@ -280,6 +281,15 @@
 
     <el-dialog v-model="historyDialogVisible" title="历史版本" width="620px" destroy-on-close class="version-history-dialog">
       <ul class="version-list version-list--dialog">
+        <li>
+          <strong>V1.3</strong>
+          <ol>
+            <li>优化 GitLab Merge Request 审查策略，支持合并前对源分支 Diff 进行审查。</li>
+            <li>优化 GitLab Push 审查流程，合并单次 Push 产生的审查记录。</li>
+            <li>优化大批量代码变更审查，按语义单元拆分审查批次，减少长 Diff 截断和内容遗漏。</li>
+            <li>登录页启用全屏 AI Code Reviewer 背景，并优化登录框布局。</li>
+          </ol>
+        </li>
         <li>
           <strong>V1.2</strong>
           <ol>

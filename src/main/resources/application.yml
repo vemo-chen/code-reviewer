@@ -39,6 +39,12 @@ code-reviewer:
   gitlab:
     connect-timeout-ms: 5000
     read-timeout-ms: 15000
+  sso:
+    base-url: ${SSO_BASE_URL:}
+    login-path: ${SSO_LOGIN_PATH:}
+    employee-info-path: ${SSO_EMPLOYEE_INFO_PATH:}
+    connect-timeout-ms: ${SSO_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms: ${SSO_READ_TIMEOUT_MS:15000}
   review:
     rules-file: config/review-rules.md
     rule-refresh-ms: 30000

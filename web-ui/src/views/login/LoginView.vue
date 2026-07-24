@@ -3,18 +3,42 @@
     <section class="login-panel">
       <p class="eyebrow">Internal Access</p>
       <h1>Code Reviewer</h1>
-      <p class="description">统一管理项目配置、AI 审查记录与团队研发质效，支持按项目权限精确查看数据。</p>
+      <p class="description">Intelligent Analysis & Optimization</p>
+
+      <div class="login-mode-tabs" role="tablist" aria-label="登录方式">
+        <button :class="{ active: loginMode === 'local' }" type="button" @click="loginMode = 'local'">平台登录</button>
+        <button :class="{ active: loginMode === 'sso' }" type="button" @click="loginMode = 'sso'">SSO</button>
+      </div>
 
       <form class="login-form" @submit.prevent="handleLogin">
         <label>
-          <span>用户名</span>
-          <input v-model.trim="form.username" type="text" placeholder="请输入用户名" />
+          <span>{{ loginMode === "sso" ? "工号" : "用户名 / 邮箱" }}</span>
+          <input v-model.trim="form.username" type="text" :placeholder="loginMode === 'sso' ? '请输入公司工号' : '请输入用户名或邮箱'" autocomplete="username" />
         </label>
         <label>
-          <span>密码</span>
-          <input v-model.trim="form.password" type="password" placeholder="请输入密码" />
+          <span>{{ loginMode === "sso" ? "公司密码" : "平台密码" }}</span>
+          <div class="password-input">
+            <input
+              v-model.trim="form.password"
+              :type="showPassword ? 'text' : 'password'"
+              :placeholder="loginMode === 'sso' ? '请输入公司账号密码' : '请输入平台密码'"
+              autocomplete="current-password"
+            />
+            <button
+              class="toggle-password"
+              type="button"
+              :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+              :title="showPassword ? '隐藏密码' : '显示密码'"
+              @click="showPassword = !showPassword"
+            >
+              <el-icon>
+                <Hide v-if="showPassword" />
+                <View v-else />
+              </el-icon>
+            </button>
+          </div>
         </label>
-        <button type="submit" :disabled="submitting">{{ submitting ? "登录中..." : "进入系统" }}</button>
+        <button class="login-submit" type="submit" :disabled="submitting">{{ submitting ? "登录中..." : "进入系统" }}</button>
       </form>
       <div class="login-switch">
         <span>还没有账号？</span>
@@ -27,6 +51,7 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { Hide, View } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { useAuthStore } from "../../stores/auth";
 import loginBackground from "../../assets/images/login-background.png";
@@ -35,6 +60,8 @@ const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const submitting = ref(false);
+const loginMode = ref<"local" | "sso">("local");
+const showPassword = ref(false);
 
 const form = reactive({
   username: "",
@@ -51,13 +78,17 @@ const resolveErrorMessage = (error: unknown, fallback: string) => {
 
 const handleLogin = async () => {
   if (!form.username || !form.password) {
-    ElMessage.warning("请输入用户名和密码");
+    ElMessage.warning(loginMode.value === "sso" ? "请输入工号和公司密码" : "请输入用户名或邮箱和平台密码");
     return;
   }
 
   submitting.value = true;
   try {
-    await authStore.login(form.username, form.password);
+    if (loginMode.value === "sso") {
+      await authStore.ssoLogin(form.username, form.password);
+    } else {
+      await authStore.login(form.username, form.password);
+    }
     ElMessage.success("登录成功");
     const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "/dashboard";
     router.replace(redirect);
@@ -123,7 +154,33 @@ h1 {
 .login-form {
   display: grid;
   gap: 18px;
-  margin-top: 30px;
+  margin-top: 22px;
+}
+
+.login-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 24px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(144, 77, 0, 0.08);
+}
+
+.login-mode-tabs button {
+  min-height: 36px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cr-text-soft);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.login-mode-tabs button.active {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--cr-primary-deep);
+  box-shadow: 0 6px 14px rgba(144, 77, 0, 0.1);
 }
 
 .login-form label {
@@ -153,7 +210,49 @@ h1 {
   border-bottom-color: var(--cr-primary);
 }
 
-.login-form button {
+.password-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid rgba(144, 77, 0, 0.12);
+}
+
+.password-input:focus-within {
+  border-bottom-color: var(--cr-primary);
+}
+
+.password-input input {
+  border-bottom: none;
+  padding-right: 40px;
+}
+
+.password-input input:focus {
+  border-bottom-color: transparent;
+}
+
+.toggle-password {
+  position: absolute;
+  top: calc(50% + 2px);
+  right: 0;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: var(--cr-text-soft);
+  cursor: pointer;
+}
+
+.toggle-password:hover,
+.toggle-password:focus-visible {
+  color: var(--cr-primary-deep);
+}
+
+.login-submit {
   margin-top: 8px;
   border: none;
   border-radius: 8px;
@@ -165,7 +264,7 @@ h1 {
   box-shadow: 0 0.5rem 1.4rem rgba(255, 140, 0, 0.22);
 }
 
-.login-form button:disabled {
+.login-submit:disabled {
   cursor: not-allowed;
   opacity: 0.72;
 }

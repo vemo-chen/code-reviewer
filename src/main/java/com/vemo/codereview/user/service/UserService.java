@@ -26,6 +26,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
@@ -66,6 +67,9 @@ public class UserService {
         if (StringUtils.hasText(request.getDisplayName())) {
             wrapper.like("display_name", request.getDisplayName().trim());
         }
+        if (StringUtils.hasText(request.getEmail())) {
+            wrapper.like("email", request.getEmail().trim().toLowerCase(Locale.ROOT));
+        }
         if (StringUtils.hasText(request.getGitlabUsername())) {
             wrapper.like("gitlab_username", request.getGitlabUsername().trim());
         }
@@ -87,6 +91,10 @@ public class UserService {
             item.setId(entity.getId());
             item.setUsername(entity.getUsername());
             item.setDisplayName(entity.getDisplayName());
+            item.setEmail(entity.getEmail());
+            item.setEmployeeCode(entity.getEmployeeCode());
+            item.setAuthSource(entity.getAuthSource());
+            item.setPasswordInitialized(isPasswordInitialized(entity));
             item.setGitlabUsername(entity.getGitlabUsername());
             item.setRole(entity.getRole());
             item.setStatus(entity.getStatus());
@@ -116,13 +124,20 @@ public class UserService {
         if (existsByUsername(request.getUsername().trim(), null)) {
             throw new DomainException("USER_USERNAME_DUPLICATE", "Username already exists");
         }
+        String email = normalizeEmail(request.getEmail());
+        if (existsByEmail(email, null)) {
+            throw new DomainException("USER_EMAIL_DUPLICATE", "邮箱已存在");
+        }
 
         Date now = new Date();
         UserEntity entity = new UserEntity();
         entity.setUsername(request.getUsername().trim());
         entity.setDisplayName(request.getDisplayName().trim());
+        entity.setEmail(email);
         entity.setGitlabUsername(normalizeGitlabUsername(request.getGitlabUsername()));
         entity.setPasswordHash(passwordHashService.sha256(request.getPassword().trim()));
+        entity.setAuthSource("LOCAL");
+        entity.setPasswordInitialized(true);
         entity.setRole(normalizeRole(request.getRole()));
         entity.setStatus(normalizeStatus(request.getStatus()));
         entity.setCreatedAt(now);
@@ -140,9 +155,14 @@ public class UserService {
         if (existsByUsername(request.getUsername().trim(), userId)) {
             throw new DomainException("USER_USERNAME_DUPLICATE", "Username already exists");
         }
+        String email = normalizeEmail(request.getEmail());
+        if (existsByEmail(email, userId)) {
+            throw new DomainException("USER_EMAIL_DUPLICATE", "邮箱已存在");
+        }
 
         entity.setUsername(request.getUsername().trim());
         entity.setDisplayName(request.getDisplayName().trim());
+        entity.setEmail(email);
         entity.setGitlabUsername(normalizeGitlabUsername(request.getGitlabUsername()));
         entity.setRole(normalizeRole(request.getRole()));
         entity.setStatus(normalizeStatus(request.getStatus()));
@@ -174,6 +194,7 @@ public class UserService {
         UserEntity entity = requireUser(userId);
         assertNotBuiltInAdmin(entity);
         entity.setPasswordHash(passwordHashService.sha256(request.getPassword().trim()));
+        entity.setPasswordInitialized(true);
         entity.setUpdatedAt(new Date());
         userMapper.updateById(entity);
     }
@@ -280,6 +301,9 @@ public class UserService {
         if (!StringUtils.hasText(request.getDisplayName())) {
             throw new DomainException("USER_DISPLAY_NAME_REQUIRED", "Display name is required");
         }
+        if (!StringUtils.hasText(request.getEmail())) {
+            throw new DomainException("USER_EMAIL_REQUIRED", "邮箱不能为空");
+        }
         if (!StringUtils.hasText(request.getPassword())) {
             throw new DomainException("USER_PASSWORD_REQUIRED", "Password is required");
         }
@@ -296,6 +320,9 @@ public class UserService {
         }
         if (!StringUtils.hasText(request.getDisplayName())) {
             throw new DomainException("USER_DISPLAY_NAME_REQUIRED", "Display name is required");
+        }
+        if (!StringUtils.hasText(request.getEmail())) {
+            throw new DomainException("USER_EMAIL_REQUIRED", "邮箱不能为空");
         }
         normalizeRole(request.getRole());
         normalizeStatus(request.getStatus());
@@ -341,6 +368,16 @@ public class UserService {
     private boolean existsByUsername(String username, Long excludeUserId) {
         QueryWrapper<UserEntity> wrapper = new QueryWrapper<UserEntity>();
         wrapper.eq("username", username);
+        if (excludeUserId != null) {
+            wrapper.ne("id", excludeUserId);
+        }
+        wrapper.last("limit 1");
+        return userMapper.selectOne(wrapper) != null;
+    }
+
+    private boolean existsByEmail(String email, Long excludeUserId) {
+        QueryWrapper<UserEntity> wrapper = new QueryWrapper<UserEntity>();
+        wrapper.eq("email", email);
         if (excludeUserId != null) {
             wrapper.ne("id", excludeUserId);
         }
@@ -395,12 +432,32 @@ public class UserService {
         response.setId(entity.getId());
         response.setUsername(entity.getUsername());
         response.setDisplayName(entity.getDisplayName());
+        response.setEmail(entity.getEmail());
+        response.setEmployeeCode(entity.getEmployeeCode());
+        response.setSsoUserId(entity.getSsoUserId());
+        response.setAuthSource(entity.getAuthSource());
+        response.setPasswordInitialized(isPasswordInitialized(entity));
         response.setGitlabUsername(entity.getGitlabUsername());
         response.setRole(entity.getRole());
         response.setStatus(entity.getStatus());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedAt(entity.getUpdatedAt());
         return response;
+    }
+
+    private String normalizeEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            throw new DomainException("USER_EMAIL_REQUIRED", "邮箱不能为空");
+        }
+        String normalized = email.trim().toLowerCase(Locale.ROOT);
+        if (!normalized.contains("@")) {
+            throw new DomainException("USER_EMAIL_INVALID", "邮箱格式不正确");
+        }
+        return normalized;
+    }
+
+    private boolean isPasswordInitialized(UserEntity entity) {
+        return entity.getPasswordInitialized() == null || Boolean.TRUE.equals(entity.getPasswordInitialized());
     }
 
     private String normalizeGitlabUsername(String gitlabUsername) {

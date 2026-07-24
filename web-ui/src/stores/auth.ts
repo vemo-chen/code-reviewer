@@ -1,6 +1,6 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-import { currentUserApi, loginApi, logoutApi, registerApi } from "../api/auth";
+import { currentUserApi, loginApi, logoutApi, registerApi, ssoLoginApi } from "../api/auth";
 import type { RegisterPayload } from "../api/auth";
 
 const TOKEN_KEY = "code-reviewer-token";
@@ -75,6 +75,11 @@ export const useAuthStore = defineStore("auth", () => {
     applyAuth(response.data.data);
   };
 
+  const ssoLogin = async (employeeCode: string, password: string) => {
+    const response = await ssoLoginApi({ employeeCode, password });
+    applyAuth(response.data.data);
+  };
+
   const register = async (payload: RegisterPayload) => {
     const response = await registerApi(payload);
     applyAuth(response.data.data);
@@ -127,6 +132,7 @@ export const useAuthStore = defineStore("auth", () => {
     isLoggedIn,
     initialized,
     login,
+    ssoLogin,
     register,
     fetchCurrentUser,
     initialize,

@@ -1,9 +1,13 @@
 package com.vemo.codereview.auth.controller;
 
+import com.vemo.codereview.auth.model.AuthProfileResponse;
 import com.vemo.codereview.auth.model.LoginRequest;
 import com.vemo.codereview.auth.model.LoginResponse;
 import com.vemo.codereview.auth.model.ChangePasswordRequest;
 import com.vemo.codereview.auth.model.RegisterRequest;
+import com.vemo.codereview.auth.model.SetPasswordRequest;
+import com.vemo.codereview.auth.model.SsoLoginRequest;
+import com.vemo.codereview.auth.model.UpdateGitlabUsernameRequest;
 import com.vemo.codereview.auth.service.AuthService;
 import com.vemo.codereview.common.exception.DomainException;
 import com.vemo.codereview.common.model.ApiResponse;
@@ -46,11 +50,32 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/sso-login")
+    public ResponseEntity<ApiResponse<LoginResponse>> ssoLogin(@RequestBody SsoLoginRequest request) {
+        try {
+            return ResponseEntity.ok(ApiResponse.success(authService.ssoLogin(request)));
+        } catch (DomainException ex) {
+            return ResponseEntity.status(resolveStatus(ex))
+                .body(ApiResponse.failure(ex.getCode(), ex.getMessage()));
+        }
+    }
+
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<LoginResponse>> me(
         @RequestHeader(value = "Authorization", required = false) String authorization) {
         try {
             return ResponseEntity.ok(ApiResponse.success(authService.currentUser(authorization)));
+        } catch (DomainException ex) {
+            return ResponseEntity.status(resolveStatus(ex))
+                .body(ApiResponse.failure(ex.getCode(), ex.getMessage()));
+        }
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<ApiResponse<AuthProfileResponse>> profile(
+        @RequestHeader(value = "Authorization", required = false) String authorization) {
+        try {
+            return ResponseEntity.ok(ApiResponse.success(authService.profile(authorization)));
         } catch (DomainException ex) {
             return ResponseEntity.status(resolveStatus(ex))
                 .body(ApiResponse.failure(ex.getCode(), ex.getMessage()));
@@ -77,8 +102,36 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/set-password")
+    public ResponseEntity<ApiResponse<String>> setPassword(
+        @RequestHeader(value = "Authorization", required = false) String authorization,
+        @RequestBody SetPasswordRequest request) {
+        try {
+            authService.setPassword(authorization, request);
+            return ResponseEntity.ok(ApiResponse.success("password_set"));
+        } catch (DomainException ex) {
+            return ResponseEntity.status(resolveStatus(ex))
+                .body(ApiResponse.failure(ex.getCode(), ex.getMessage()));
+        }
+    }
+
+    @PostMapping("/profile/gitlab-username")
+    public ResponseEntity<ApiResponse<AuthProfileResponse>> updateGitlabUsername(
+        @RequestHeader(value = "Authorization", required = false) String authorization,
+        @RequestBody UpdateGitlabUsernameRequest request) {
+        try {
+            return ResponseEntity.ok(ApiResponse.success(authService.updateGitlabUsername(authorization, request)));
+        } catch (DomainException ex) {
+            return ResponseEntity.status(resolveStatus(ex))
+                .body(ApiResponse.failure(ex.getCode(), ex.getMessage()));
+        }
+    }
+
     private HttpStatus resolveStatus(DomainException ex) {
-        if ("AUTH_UNAUTHORIZED".equals(ex.getCode()) || "AUTH_INVALID".equals(ex.getCode())) {
+        if ("AUTH_UNAUTHORIZED".equals(ex.getCode())
+            || "AUTH_INVALID".equals(ex.getCode())
+            || "SSO_LOGIN_FAILED".equals(ex.getCode())
+            || "AUTH_PASSWORD_NOT_INITIALIZED".equals(ex.getCode())) {
             return HttpStatus.UNAUTHORIZED;
         }
         if ("AUTH_FORBIDDEN".equals(ex.getCode())) {

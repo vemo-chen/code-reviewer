@@ -9,6 +9,9 @@
           <el-input v-model.trim="queryForm.displayName" placeholder="请输入昵称" clearable />
         </el-form-item>
         <el-form-item>
+          <el-input v-model.trim="queryForm.email" placeholder="请输入邮箱" clearable />
+        </el-form-item>
+        <el-form-item>
           <el-input v-model.trim="queryForm.gitlabUsername" placeholder="请输入 GitLab 用户名" clearable />
         </el-form-item>
         <el-form-item>
@@ -47,6 +50,11 @@
       <el-table v-loading="loading" :data="records" stripe>
         <el-table-column prop="username" label="用户名" min-width="130" />
         <el-table-column prop="displayName" label="昵称" min-width="130" />
+        <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.email || "--" }}
+          </template>
+        </el-table-column>
         <el-table-column prop="gitlabUsername" label="GitLab 用户名" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.gitlabUsername || "--" }}
@@ -137,6 +145,9 @@
             </el-form-item>
             <el-form-item :label="userDrawerCopy.displayNameLabel" prop="displayName">
               <el-input v-model.trim="userForm.displayName" :placeholder="userDrawerCopy.displayNamePlaceholder" />
+            </el-form-item>
+            <el-form-item :label="userDrawerCopy.emailLabel" prop="email">
+              <el-input v-model.trim="userForm.email" :placeholder="userDrawerCopy.emailPlaceholder" />
             </el-form-item>
             <el-form-item :label="userDrawerCopy.gitlabUsernameLabel">
               <el-input v-model.trim="userForm.gitlabUsername" :placeholder="userDrawerCopy.gitlabUsernamePlaceholder" clearable />
@@ -240,6 +251,7 @@ interface UserItem {
   id: number;
   username: string;
   displayName: string;
+  email: string;
   gitlabUsername: string;
   role: string;
   status: string;
@@ -276,6 +288,7 @@ const pagination = reactive({
 const queryForm = reactive({
   username: "",
   displayName: "",
+  email: "",
   gitlabUsername: "",
   role: "",
   status: ""
@@ -284,6 +297,7 @@ const queryForm = reactive({
 const activeQuery = reactive({
   username: "",
   displayName: "",
+  email: "",
   gitlabUsername: "",
   role: "",
   status: ""
@@ -293,6 +307,7 @@ const userForm = reactive({
   id: undefined as number | undefined,
   username: "",
   displayName: "",
+  email: "",
   gitlabUsername: "",
   password: "",
   role: "USER",
@@ -310,6 +325,8 @@ const userDrawerCopy = {
   usernamePlaceholder: "\u8bf7\u8f93\u5165\u7528\u6237\u540d",
   displayNameLabel: "\u663e\u793a\u540d",
   displayNamePlaceholder: "\u8bf7\u8f93\u5165\u663e\u793a\u540d",
+  emailLabel: "\u90ae\u7bb1",
+  emailPlaceholder: "\u8bf7\u8f93\u5165\u516c\u53f8\u90ae\u7bb1",
   gitlabUsernameLabel: "GitLab \u7528\u6237\u540d",
   gitlabUsernamePlaceholder: "\u8bf7\u8f93\u5165 GitLab \u7528\u6237\u540d",
   passwordLabel: "\u521d\u59cb\u5bc6\u7801",
@@ -332,6 +349,7 @@ const assignDrawerCopy = {
 const userRules: FormRules = {
   username: [{ required: true, message: "请输入用户名", trigger: "blur" }],
   displayName: [{ required: true, message: "请输入昵称", trigger: "blur" }],
+  email: [{ required: true, message: "请输入邮箱", trigger: "blur" }],
   password: [{ required: true, message: "请输入初始密码", trigger: "blur" }],
   role: [{ required: true, message: "请选择角色", trigger: "change" }],
   status: [{ required: true, message: "请选择状态", trigger: "change" }]
@@ -359,6 +377,7 @@ const resolveErrorMessage = (error: unknown, fallback: string) => {
 const applyFilters = () => {
   activeQuery.username = queryForm.username.trim();
   activeQuery.displayName = queryForm.displayName.trim();
+  activeQuery.email = queryForm.email.trim();
   activeQuery.gitlabUsername = queryForm.gitlabUsername.trim();
   activeQuery.role = queryForm.role;
   activeQuery.status = queryForm.status;
@@ -372,6 +391,7 @@ const loadUsers = async () => {
       pageSize: pagination.pageSize,
       username: activeQuery.username || undefined,
       displayName: activeQuery.displayName || undefined,
+      email: activeQuery.email || undefined,
       gitlabUsername: activeQuery.gitlabUsername || undefined,
       role: activeQuery.role || undefined,
       status: activeQuery.status || undefined
@@ -401,6 +421,7 @@ const handleSearch = async () => {
 const resetFilters = async () => {
   queryForm.username = "";
   queryForm.displayName = "";
+  queryForm.email = "";
   queryForm.gitlabUsername = "";
   queryForm.role = "";
   queryForm.status = "";
@@ -418,6 +439,7 @@ const resetUserForm = () => {
   userForm.id = undefined;
   userForm.username = "";
   userForm.displayName = "";
+  userForm.email = "";
   userForm.gitlabUsername = "";
   userForm.password = "";
   userForm.role = "USER";
@@ -435,6 +457,7 @@ const openEditDrawer = (row: UserItem) => {
   userForm.id = row.id;
   userForm.username = row.username;
   userForm.displayName = row.displayName;
+  userForm.email = row.email || "";
   userForm.gitlabUsername = row.gitlabUsername || "";
   userForm.password = "";
   userForm.role = row.role;
@@ -455,6 +478,7 @@ const submitUser = async () => {
       const payload = {
         username: userForm.username.trim(),
         displayName: userForm.displayName.trim(),
+        email: userForm.email.trim(),
         gitlabUsername: userForm.gitlabUsername.trim() || undefined,
         password: userForm.password.trim() || undefined,
         role: userForm.role,

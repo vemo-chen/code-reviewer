@@ -1,21 +1,15 @@
-package com.vemo.codereview.user.entity;
+package com.vemo.codereview.auth.model;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
 import java.util.Date;
 import lombok.Getter;
 import lombok.Setter;
 
-@TableName("sys_user")
 @Getter
 @Setter
-public class UserEntity {
+public class AuthProfileResponse {
 
-    @TableId(type = IdType.AUTO)
-    private Long id;
+    private Long userId;
     private String username;
-    private String passwordHash;
     private String displayName;
     private String email;
     private String employeeCode;

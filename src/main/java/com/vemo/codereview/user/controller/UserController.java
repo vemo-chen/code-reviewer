@@ -36,6 +36,7 @@ public class UserController {
         @RequestParam(defaultValue = "10") long pageSize,
         @RequestParam(required = false) String username,
         @RequestParam(required = false) String displayName,
+        @RequestParam(required = false) String email,
         @RequestParam(required = false) String gitlabUsername,
         @RequestParam(required = false) String role,
         @RequestParam(required = false) String status) {
@@ -44,6 +45,7 @@ public class UserController {
         request.setPageSize(pageSize);
         request.setUsername(username);
         request.setDisplayName(displayName);
+        request.setEmail(email);
         request.setGitlabUsername(gitlabUsername);
         request.setRole(role);
         request.setStatus(status);

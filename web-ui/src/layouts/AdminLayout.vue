@@ -7,7 +7,7 @@
         </div>
         <div class="topbar-title">
           <span>Code Reviewer</span>
-          <em>v1.3</em>
+          <em>v1.4</em>
         </div>
       </div>
 
@@ -28,7 +28,8 @@
           </button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="password">修改密码</el-dropdown-item>
+              <el-dropdown-item command="profile">个人信息</el-dropdown-item>
+              <el-dropdown-item command="password">{{ passwordMenuText }}</el-dropdown-item>
               <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -63,9 +64,44 @@
       </div>
     </div>
 
-    <el-dialog v-model="passwordDialogVisible" title="修改密码" width="420px" destroy-on-close>
+    <el-dialog v-model="profileDialogVisible" title="个人信息" width="560px" destroy-on-close>
+      <div v-loading="profileLoading" class="profile-dialog-body">
+        <el-descriptions v-if="authProfile" :column="1" border class="profile-descriptions">
+          <el-descriptions-item label="显示名称">{{ displayValue(authProfile.displayName) }}</el-descriptions-item>
+          <el-descriptions-item label="平台账号">{{ displayValue(authProfile.username) }}</el-descriptions-item>
+          <el-descriptions-item label="邮箱">{{ displayValue(authProfile.email) }}</el-descriptions-item>
+          <el-descriptions-item label="工号">{{ displayValue(authProfile.employeeCode) }}</el-descriptions-item>
+          <el-descriptions-item label="GitLab 用户名">
+            <div class="profile-inline-edit">
+              <el-input
+                v-model.trim="gitlabUsernameForm.gitlabUsername"
+                placeholder="用于关联 GitLab 提交和合并请求"
+                clearable
+              />
+              <el-button type="warning" :loading="profileSaving" @click="saveGitlabUsername">保存</el-button>
+            </div>
+          </el-descriptions-item>
+          <el-descriptions-item label="角色">{{ profileRoleLabel }}</el-descriptions-item>
+          <el-descriptions-item label="状态">{{ profileStatusLabel }}</el-descriptions-item>
+          <el-descriptions-item label="账号来源">{{ authSourceLabel }}</el-descriptions-item>
+          <el-descriptions-item label="平台密码">
+            <el-tag :type="authProfile.passwordInitialized ? 'success' : 'warning'" effect="plain">
+              {{ authProfile.passwordInitialized ? "已设置" : "未设置" }}
+            </el-tag>
+          </el-descriptions-item>
+        </el-descriptions>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="profileDialogVisible = false">关闭</el-button>
+          <el-button type="warning" @click="openPasswordDialogFromProfile">{{ passwordMenuText }}</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="passwordDialogVisible" :title="passwordDialogTitle" width="420px" destroy-on-close>
       <el-form ref="passwordFormRef" :model="passwordForm" :rules="passwordRules" label-width="96px">
-        <el-form-item label="当前密码" prop="currentPassword">
+        <el-form-item v-if="passwordMode === 'change'" label="当前密码" prop="currentPassword">
           <el-input v-model="passwordForm.currentPassword" type="password" show-password />
         </el-form-item>
         <el-form-item label="新密码" prop="newPassword">
@@ -101,7 +137,13 @@ import {
 } from "@element-plus/icons-vue";
 import type { FormInstance, FormRules } from "element-plus";
 import { ElMessage } from "element-plus";
-import { changePasswordApi } from "../api/auth";
+import {
+  changePasswordApi,
+  profileApi,
+  setPasswordApi,
+  updateGitlabUsernameApi
+} from "../api/auth";
+import type { AuthProfile } from "../api/auth";
 import { useAuthStore } from "../stores/auth";
 import brandLogo from "../assets/images/code-reviewer-logo.png";
 
@@ -116,9 +158,17 @@ const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const { displayName, isAdmin, username, role } = storeToRefs(authStore);
+const profileDialogVisible = ref(false);
+const profileLoading = ref(false);
+const profileSaving = ref(false);
+const authProfile = ref<AuthProfile | null>(null);
+const gitlabUsernameForm = reactive({
+  gitlabUsername: ""
+});
 const passwordDialogVisible = ref(false);
 const passwordSubmitting = ref(false);
 const passwordFormRef = ref<FormInstance>();
+const passwordMode = ref<"change" | "set">("change");
 const passwordForm = reactive({
   currentPassword: "",
   newPassword: "",
@@ -159,6 +209,27 @@ const usernameInitial = computed(() => {
 });
 
 const roleLabel = computed(() => (role.value === "ADMIN" ? "系统管理员" : "项目成员"));
+const passwordMenuText = computed(() => (authProfile.value?.passwordInitialized === false ? "设置平台密码" : "修改密码"));
+const passwordDialogTitle = computed(() => (passwordMode.value === "set" ? "设置平台密码" : "修改密码"));
+const profileRoleLabel = computed(() => (authProfile.value?.role === "ADMIN" ? "系统管理员" : "项目成员"));
+const profileStatusLabel = computed(() => (authProfile.value?.status === "ENABLE" ? "启用" : "停用"));
+const authSourceLabel = computed(() => {
+  const value = authProfile.value?.authSource;
+  if (value === "SSO") {
+    return "公司账号";
+  }
+  if (value === "LOCAL_SSO") {
+    return "平台账号 + 公司账号";
+  }
+  return "平台账号";
+});
+
+const displayValue = (value?: string | number | null) => {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+  return String(value);
+};
 
 const resetPasswordForm = () => {
   passwordForm.currentPassword = "";
@@ -175,6 +246,55 @@ const resolveErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const loadProfile = async () => {
+  profileLoading.value = true;
+  try {
+    const response = await profileApi();
+    authProfile.value = response.data.data;
+    gitlabUsernameForm.gitlabUsername = authProfile.value?.gitlabUsername ?? "";
+    return authProfile.value;
+  } catch (error) {
+    ElMessage.error(resolveErrorMessage(error, "获取个人信息失败"));
+    return null;
+  } finally {
+    profileLoading.value = false;
+  }
+};
+
+const openProfileDialog = async () => {
+  profileDialogVisible.value = true;
+  await loadProfile();
+};
+
+const saveGitlabUsername = async () => {
+  profileSaving.value = true;
+  try {
+    const response = await updateGitlabUsernameApi({
+      gitlabUsername: gitlabUsernameForm.gitlabUsername
+    });
+    authProfile.value = response.data.data;
+    gitlabUsernameForm.gitlabUsername = authProfile.value?.gitlabUsername ?? "";
+    ElMessage.success("GitLab 用户名已更新");
+  } catch (error) {
+    ElMessage.error(resolveErrorMessage(error, "更新 GitLab 用户名失败"));
+  } finally {
+    profileSaving.value = false;
+  }
+};
+
+const openPasswordDialog = async () => {
+  const profile = authProfile.value ?? await loadProfile();
+  passwordMode.value = profile?.passwordInitialized === false ? "set" : "change";
+  resetPasswordForm();
+  passwordDialogVisible.value = true;
+};
+
+const openPasswordDialogFromProfile = () => {
+  passwordMode.value = authProfile.value?.passwordInitialized === false ? "set" : "change";
+  resetPasswordForm();
+  passwordDialogVisible.value = true;
+};
+
 const submitPasswordChange = async () => {
   if (!passwordFormRef.value) {
     return;
@@ -185,17 +305,25 @@ const submitPasswordChange = async () => {
     }
     passwordSubmitting.value = true;
     try {
-      await changePasswordApi({
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword
-      });
-      ElMessage.success("密码修改成功，请重新登录");
+      if (passwordMode.value === "set") {
+        await setPasswordApi({
+          newPassword: passwordForm.newPassword
+        });
+        ElMessage.success("平台密码已设置");
+        await loadProfile();
+      } else {
+        await changePasswordApi({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        });
+        ElMessage.success("密码修改成功，请重新登录");
+        authStore.clearAuth();
+        router.replace("/login");
+      }
       passwordDialogVisible.value = false;
       resetPasswordForm();
-      authStore.clearAuth();
-      router.replace("/login");
     } catch (error) {
-      ElMessage.error(resolveErrorMessage(error, "修改密码失败"));
+      ElMessage.error(resolveErrorMessage(error, passwordMode.value === "set" ? "设置平台密码失败" : "修改密码失败"));
     } finally {
       passwordSubmitting.value = false;
     }
@@ -208,9 +336,12 @@ const handleUserCommand = async (command: string) => {
     router.push("/login");
     return;
   }
+  if (command === "profile") {
+    await openProfileDialog();
+    return;
+  }
   if (command === "password") {
-    resetPasswordForm();
-    passwordDialogVisible.value = true;
+    await openPasswordDialog();
   }
 };
 
@@ -448,6 +579,27 @@ const openManual = () => {
   gap: 12px;
 }
 
+.profile-dialog-body {
+  min-height: 280px;
+}
+
+.profile-descriptions :deep(.el-descriptions__label) {
+  width: 116px;
+  color: rgba(86, 67, 52, 0.72);
+  font-weight: 700;
+}
+
+.profile-inline-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.profile-inline-edit .el-button {
+  min-width: 72px;
+}
+
 @media (max-width: 1080px) {
   .body-shell {
     grid-template-columns: 1fr;
@@ -463,6 +615,10 @@ const openManual = () => {
 
   .page-shell {
     padding: 20px 18px 24px;
+  }
+
+  .profile-inline-edit {
+    grid-template-columns: 1fr;
   }
 }
 </style>

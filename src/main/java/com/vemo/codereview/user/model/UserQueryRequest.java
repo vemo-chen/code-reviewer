@@ -11,6 +11,7 @@ public class UserQueryRequest {
     private long pageSize = 10;
     private String username;
     private String displayName;
+    private String email;
     private String gitlabUsername;
     private String role;
     private String status;

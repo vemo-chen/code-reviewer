@@ -8,7 +8,7 @@ if "%IMAGE_REPO%"=="" set "IMAGE_REPO=your-dockerhub-user/code-reviewer-backend"
 if "%MAVEN_CMD%"=="" set "MAVEN_CMD=mvn"
 if "%JAVA_HOME%"=="" if exist "C:\Program Files\Java\jdk-1.8\bin\javac.exe" set "JAVA_HOME=C:\Program Files\Java\jdk-1.8"
 if not "%JAVA_HOME%"=="" set "PATH=%JAVA_HOME%\bin;%PATH%"
-set "JAR_PATH=%ROOT_DIR%\target\code-reviewer-0.0.1-SNAPSHOT.jar"
+set "JAR_PATH=%ROOT_DIR%\target\code-reviewer-1.4.0.jar"
 
 for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMddHHmm"') do set "IMAGE_TAG=%%i"
 

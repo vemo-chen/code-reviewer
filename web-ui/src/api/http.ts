@@ -45,7 +45,9 @@ http.interceptors.response.use(
   (error) => {
     const status = error?.response?.status;
     const requestUrl = String(error?.config?.url || "");
-    const isPublicAuthRequest = requestUrl.includes("/auth/login") || requestUrl.includes("/auth/register");
+    const isPublicAuthRequest = requestUrl.includes("/auth/login")
+      || requestUrl.includes("/auth/sso-login")
+      || requestUrl.includes("/auth/register");
 
     if (status === 401 && !isPublicAuthRequest) {
       jumpToLogin();

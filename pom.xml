@@ -13,7 +13,7 @@
 
     <groupId>com.vemo</groupId>
     <artifactId>code-reviewer</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>1.4.0</version>
     <name>code-reviewer</name>
     <description>GitLab-first AI code review tool</description>
 
