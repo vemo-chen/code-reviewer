@@ -254,9 +254,14 @@ public class ReviewTaskWorker {
                 task.getId(), persistedResult.getId(), elapsedMs(workerStartNs));
             if (shouldPublishGitLab(projectConfig)) {
                 long publishStartNs = System.nanoTime();
-                publishReviewResult(task, persistedResult, context, gitLabProjectId, gitLabProjectUrl, gitLabApiToken);
-                log.info("review gitlab note published. taskId={}, publishMs={}, elapsedMs={}",
-                    task.getId(), elapsedMs(publishStartNs), elapsedMs(workerStartNs));
+                try {
+                    publishReviewResult(task, persistedResult, context, gitLabProjectId, gitLabProjectUrl, gitLabApiToken);
+                    log.info("review gitlab note published. taskId={}, publishMs={}, elapsedMs={}",
+                        task.getId(), elapsedMs(publishStartNs), elapsedMs(workerStartNs));
+                } catch (RuntimeException ex) {
+                    log.warn("GitLab note publishing failed without changing review task status. taskId={}, resultId={}, publishMs={}, message={}",
+                        task.getId(), persistedResult.getId(), elapsedMs(publishStartNs), ex.getMessage());
+                }
             }
 
             QueryWrapper<CodeReviewCommentEntity> commentWrapper = new QueryWrapper<CodeReviewCommentEntity>();

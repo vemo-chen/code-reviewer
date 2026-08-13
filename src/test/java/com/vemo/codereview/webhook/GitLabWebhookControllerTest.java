@@ -15,6 +15,7 @@ import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewTaskStoreMapper;
+import java.time.Instant;
 import java.util.Date;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -102,6 +103,39 @@ class GitLabWebhookControllerTest {
         assertNotNull(event.getSubmitTime());
         assertEquals(managedProjectId1001, event.getProjectId());
         assertEquals(managedProjectId1001, task.getProjectId());
+    }
+
+    @Test
+    void shouldParseGitLabUtcTextTimestampBeforeFallingBackToLastCommitTime() throws Exception {
+        String payload = "{"
+            + "\"object_kind\":\"merge_request\","
+            + "\"event_type\":\"merge_request\","
+            + "\"user\":{\"id\":12,\"name\":\"alice\"},"
+            + "\"project\":{\"id\":1001,\"name\":\"code-reviewer\"},"
+            + "\"object_attributes\":{"
+            + "\"id\":601,"
+            + "\"iid\":17,"
+            + "\"title\":\"Release legacy commit\","
+            + "\"action\":\"open\","
+            + "\"created_at\":\"2026-07-27 03:31:49 UTC\","
+            + "\"updated_at\":\"2026-07-27 04:31:33 UTC\","
+            + "\"source_branch\":\"release/legacy\","
+            + "\"target_branch\":\"main\","
+            + "\"last_commit\":{\"id\":\"abcdef123456\",\"timestamp\":\"2026-03-24T04:31:54Z\"}"
+            + "}"
+            + "}";
+
+        mockMvc.perform(post("/api/webhooks/gitlab")
+                .header("X-Gitlab-Token", "test-gitlab-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+            .andExpect(status().isOk());
+
+        CodeReviewEventEntity event = codeReviewEventMapper.selectOne(
+            new QueryWrapper<CodeReviewEventEntity>().eq("object_id", "601"));
+
+        assertNotNull(event);
+        assertEquals(Date.from(Instant.parse("2026-07-27T03:31:49Z")), event.getSubmitTime());
     }
 
     @Test

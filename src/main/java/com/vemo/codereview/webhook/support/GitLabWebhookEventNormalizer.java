@@ -6,13 +6,19 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 @Component
 public class GitLabWebhookEventNormalizer {
+
+    private static final DateTimeFormatter GITLAB_TEXT_TIMESTAMP_FORMATTER =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z", Locale.ENGLISH);
 
     private final ObjectMapper objectMapper;
     private final IdempotencyKeyBuilder idempotencyKeyBuilder;
@@ -174,6 +180,10 @@ public class GitLabWebhookEventNormalizer {
         }
         try {
             return Date.from(Instant.parse(value));
+        } catch (Exception ignored) {
+        }
+        try {
+            return Date.from(ZonedDateTime.parse(value, GITLAB_TEXT_TIMESTAMP_FORMATTER).toInstant());
         } catch (Exception ignored) {
         }
         return null;

@@ -242,6 +242,63 @@ class ProjectScopedReviewFlowTest {
     }
 
     @Test
+    void shouldNotifyWeComWhenGitLabNotePublishingFails() {
+        CodeReviewTaskEntity task = buildTask();
+        ProjectProfileEntity projectConfig = buildProjectConfig(true, true,
+            "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=project-key", null);
+        ReviewPromptPayload reviewPromptPayload = new ReviewPromptPayload();
+        ChatCompletionResponse response = new ChatCompletionResponse();
+        response.setModel("deepseek-chat");
+        ReviewSummary reviewSummary = buildReviewSummary();
+        CodeReviewResultEntity resultEntity = buildResultEntity(9005L);
+
+        when(reviewTaskStoreMapper.selectById(1L)).thenReturn(task);
+        when(reviewEventStoreMapper.selectById(10L)).thenReturn(buildMrEvent("head-1"));
+        when(projectConfigService.findById(2001L)).thenReturn(projectConfig);
+        when(reviewRuleService.getDefaultPromptText()).thenReturn("default prompt");
+        when(projectTemplateResolverService.resolveEffectivePrompt(eq(projectConfig), eq("default prompt"))).thenReturn(null);
+        when(projectTemplateResolverService.resolveEffectiveFileExtensions(eq(projectConfig))).thenReturn(null);
+        when(gitLabReviewTargetService.getMergeRequestChanges(
+            "http://gitlab.example.com/group/subgroup/mas-core",
+            1001L,
+            "7",
+            "project-token"
+        )).thenReturn(buildChangesPayload());
+        when(promptBuilderService.build(any(ReviewExecutionContext.class))).thenReturn(reviewPromptPayload);
+        when(llmGatewayService.review(eq(2001L), eq(reviewPromptPayload))).thenReturn(response);
+        when(reviewResponseParser.parse(response)).thenReturn(reviewSummary);
+        when(reviewResultPersistenceService.completeMrReview(
+            eq(1L),
+            eq("head-1"),
+            anyString(),
+            eq("openai-compatible"),
+            eq("deepseek-chat"),
+            eq(reviewSummary),
+            eq(response),
+            any(ReviewExecutionContext.class)))
+            .thenReturn(completed(resultEntity));
+        when(reviewCommentStoreMapper.selectList(any())).thenReturn(Collections.<CodeReviewCommentEntity>emptyList());
+        doThrow(new RuntimeException("gitlab timeout")).when(gitLabCommentPublisher).publishMergeRequest(
+            "http://gitlab.example.com/group/subgroup/mas-core",
+            1001L,
+            "7",
+            resultEntity,
+            "project-token"
+        );
+
+        assertDoesNotThrow(() -> reviewTaskWorker.process(1L));
+
+        verify(weComNotificationService).notifyReviewResult(
+            eq(2001L),
+            any(),
+            eq(resultEntity),
+            eq(Collections.<CodeReviewCommentEntity>emptyList()),
+            eq("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=project-key")
+        );
+        verify(reviewRetryService, never()).handleFailure(eq(task), anyString(), any(RuntimeException.class));
+    }
+
+    @Test
     void shouldKeepTaskSuccessfulWhenEventProcessedMarkingFails() {
         CodeReviewTaskEntity task = buildTask();
         task.setTaskType("PUSH_REVIEW");
