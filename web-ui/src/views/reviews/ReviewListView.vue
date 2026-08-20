@@ -309,6 +309,19 @@
           </div>
         </section>
 
+        <section v-if="isFailedTask(detail)" class="detail-section detail-section--failure">
+          <h5 class="section-title">失败原因</h5>
+          <div class="failure-detail">
+            <div class="failure-detail__summary">
+              <strong>{{ detail.failureSummary || "审查执行失败" }}</strong>
+            </div>
+            <div class="failure-detail__meta">
+              <span><label>错误码</label><code>{{ detail.errorCode || "--" }}</code></span>
+              <span><label>错误信息</label><code>{{ detail.errorMessage || "--" }}</code></span>
+            </div>
+          </div>
+        </section>
+
         <section class="detail-section">
           <h5 class="section-title">问题列表</h5>
           <div v-if="detail.comments.length" class="comment-list">
@@ -492,6 +505,9 @@ interface ReviewTaskDetail {
   submitTime: string | null;
   createdAt: string | null;
   finishedAt: string | null;
+  errorCode: string;
+  errorMessage: string;
+  failureSummary: string;
   riskLevel: string;
   suggestedScore: number | null;
   deductionScore: number | null;
@@ -744,6 +760,13 @@ const canApproveFix = (task: ReviewTaskDetail | null) => {
 };
 
 const canRejectFix = (task: ReviewTaskDetail | null) => canApproveFix(task);
+
+const isFailedTask = (task: ReviewTaskDetail | null) => {
+  if (!task) {
+    return false;
+  }
+  return task.status === "FAILED";
+};
 
 const openFlowDialog = () => {
   flowDialogVisible.value = true;
@@ -1925,6 +1948,58 @@ onMounted(async () => {
   color: rgba(120, 107, 93, 0.82);
   font-size: 11px;
   line-height: 1.6;
+}
+
+.detail-section--failure {
+  display: grid;
+  gap: 12px;
+}
+
+.failure-detail {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 14px;
+}
+
+.failure-detail__summary strong {
+  color: #c0392b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.failure-detail__meta {
+  display: grid;
+  gap: 8px;
+}
+
+.failure-detail__meta span {
+  display: grid;
+  gap: 4px;
+}
+
+.failure-detail__meta label {
+  color: rgba(96, 98, 102, 0.72);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.failure-detail__meta code {
+  display: block;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--cr-text-soft);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .section-header {

@@ -24,6 +24,9 @@ public class ReviewTaskDetailResponse {
     private Date submitTime;
     private Date createdAt;
     private Date finishedAt;
+    private String errorCode;
+    private String errorMessage;
+    private String failureSummary;
     private String riskLevel;
     private Integer suggestedScore;
     private Integer deductionScore;

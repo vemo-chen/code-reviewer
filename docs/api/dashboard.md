@@ -16,6 +16,9 @@
 - `operatorName`
 - `riskLevel`
 - `summary`
+- `errorCode`
+- `errorMessage`
+- `failureSummary`
 
 ## 2. 项目统计
 

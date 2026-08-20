@@ -266,6 +266,36 @@ class DashboardControllerTest {
     }
 
     @Test
+    void shouldReturnFailedReviewTaskDetailWithMappedFailureSummary() throws Exception {
+        Date now = new java.text.SimpleDateFormat("yyyy-MM-dd").parse("2026-04-03");
+
+        CodeReviewTaskEntity failedTask = new CodeReviewTaskEntity();
+        failedTask.setEventId(reviewTaskId == null ? null : codeReviewTaskMapper.selectById(reviewTaskId).getEventId());
+        failedTask.setTaskType("MR_REVIEW");
+        failedTask.setSourcePlatform("gitlab");
+        failedTask.setProjectId(1001L);
+        failedTask.setTargetId("8");
+        failedTask.setTargetTitle("Failed review task");
+        failedTask.setStatus("FAILED");
+        failedTask.setRetryCount(2);
+        failedTask.setErrorCode("LLM_API_ERROR");
+        failedTask.setErrorMessage("LLM request failed with status 500, body={\"message\":\"server error\"}");
+        failedTask.setCreatedAt(now);
+        failedTask.setFinishedAt(now);
+        failedTask.setUpdatedAt(now);
+        codeReviewTaskMapper.insert(failedTask);
+
+        mockMvc.perform(get("/api/dashboard/review-tasks/" + failedTask.getId())
+                .header("Authorization", adminToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.status").value("FAILED"))
+            .andExpect(jsonPath("$.data.errorCode").value("LLM_API_ERROR"))
+            .andExpect(jsonPath("$.data.errorMessage").value("LLM request failed with status 500, body={\"message\":\"server error\"}"))
+            .andExpect(jsonPath("$.data.failureSummary").value("模型服务返回错误响应"));
+    }
+
+    @Test
     void shouldReturnProjectStats() throws Exception {
         mockMvc.perform(get("/api/dashboard/project-stats")
                 .header("Authorization", adminToken))

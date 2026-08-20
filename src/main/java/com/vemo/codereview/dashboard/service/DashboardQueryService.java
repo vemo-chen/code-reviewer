@@ -19,6 +19,7 @@ import com.vemo.codereview.review.entity.CodeReviewCommentCodeSnapshotEntity;
 import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
+import com.vemo.codereview.review.model.ReviewFailureCode;
 import com.vemo.codereview.review.mapper.ReviewCommentCodeSnapshotMapper;
 import com.vemo.codereview.review.mapper.ReviewCommentStoreMapper;
 import com.vemo.codereview.review.mapper.ReviewEventStoreMapper;
@@ -203,6 +204,9 @@ public class DashboardQueryService {
         response.setSubmitTime(resolveSubmitTime(event));
         response.setCreatedAt(task.getCreatedAt());
         response.setFinishedAt(task.getFinishedAt());
+        response.setErrorCode(task.getErrorCode());
+        response.setErrorMessage(task.getErrorMessage());
+        response.setFailureSummary(resolveFailureSummary(task.getErrorCode(), task.getErrorMessage()));
         response.setFixStatus(task.getFixStatus());
         response.setFixSubmittedBy(task.getFixSubmittedBy());
         response.setFixSubmittedByName(resolveUserDisplayName(submittedByUser));
@@ -246,6 +250,14 @@ public class DashboardQueryService {
         }
         response.setComments(commentItems);
         return response;
+    }
+
+    private String resolveFailureSummary(String errorCode, String errorMessage) {
+        if (!StringUtils.hasText(errorCode)) {
+            return StringUtils.hasText(errorMessage) ? errorMessage : null;
+        }
+        ReviewFailureCode failureCode = ReviewFailureCode.fromCode(errorCode);
+        return failureCode.getUserMessage();
     }
 
     private CodeReviewCommentCodeSnapshotEntity findSnapshot(Long commentId) {
