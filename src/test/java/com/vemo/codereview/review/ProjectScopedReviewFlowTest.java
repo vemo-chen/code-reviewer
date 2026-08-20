@@ -2,6 +2,7 @@ package com.vemo.codereview.review;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -15,6 +16,7 @@ import com.vemo.codereview.dashboard.entity.ProjectProfileEntity;
 import com.vemo.codereview.llm.model.ChatCompletionResponse;
 import com.vemo.codereview.llm.service.LlmGatewayService;
 import com.vemo.codereview.llm.service.LlmConfigResolverService;
+import com.vemo.codereview.notify.model.ReviewNotificationMetadata;
 import com.vemo.codereview.notify.service.WeComNotificationService;
 import com.vemo.codereview.platform.gitlab.model.GitLabChangesPayload;
 import com.vemo.codereview.platform.gitlab.service.GitLabCommentPublisher;
@@ -296,6 +298,58 @@ class ProjectScopedReviewFlowTest {
             eq("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=project-key")
         );
         verify(reviewRetryService, never()).handleFailure(eq(task), anyString(), any(RuntimeException.class));
+    }
+
+    @Test
+    void shouldNotifyWeComWhenReviewFinallyFails() {
+        CodeReviewTaskEntity task = buildTask();
+        task.setRetryCount(3);
+        task.setErrorCode("LLM_IO_ERROR");
+        task.setErrorMessage("model timeout");
+        ProjectProfileEntity projectConfig = buildProjectConfig(false, true,
+            "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=project-key", null);
+        ReviewPromptPayload reviewPromptPayload = new ReviewPromptPayload();
+        ChatCompletionResponse response = new ChatCompletionResponse();
+        response.setModel("deepseek-chat");
+        ReviewSummary reviewSummary = buildReviewSummary();
+
+        when(reviewTaskStoreMapper.selectById(1L)).thenReturn(task);
+        when(reviewEventStoreMapper.selectById(10L)).thenReturn(buildMrEvent("head-1"));
+        when(projectConfigService.findById(2001L)).thenReturn(projectConfig);
+        when(reviewRuleService.getDefaultPromptText()).thenReturn("default prompt");
+        when(projectTemplateResolverService.resolveEffectivePrompt(eq(projectConfig), eq("default prompt"))).thenReturn(null);
+        when(projectTemplateResolverService.resolveEffectiveFileExtensions(eq(projectConfig))).thenReturn(null);
+        when(gitLabReviewTargetService.getMergeRequestChanges(
+            "http://gitlab.example.com/group/subgroup/mas-core",
+            1001L,
+            "7",
+            "project-token"
+        )).thenReturn(buildChangesPayload());
+        when(promptBuilderService.build(any(ReviewExecutionContext.class))).thenReturn(reviewPromptPayload);
+        when(llmGatewayService.review(eq(2001L), eq(reviewPromptPayload))).thenReturn(response);
+        when(reviewResponseParser.parse(response)).thenReturn(reviewSummary);
+        when(reviewResultPersistenceService.completeMrReview(
+            eq(1L),
+            eq("head-1"),
+            anyString(),
+            eq("openai-compatible"),
+            eq("deepseek-chat"),
+            eq(reviewSummary),
+            eq(response),
+            any(ReviewExecutionContext.class)))
+            .thenThrow(new RuntimeException("model timeout"));
+        when(reviewRetryService.handleFailure(eq(task), anyString(), any(RuntimeException.class))).thenReturn(true);
+
+        assertThrows(RuntimeException.class, () -> reviewTaskWorker.process(1L));
+
+        verify(reviewRetryService).handleFailure(eq(task), anyString(), any(RuntimeException.class));
+        verify(weComNotificationService).notifyReviewFailure(
+            eq(2001L),
+            any(ReviewNotificationMetadata.class),
+            eq(task),
+            eq("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=project-key")
+        );
+        verify(weComNotificationService, never()).notifyReviewResult(anyLong(), any(), any(), any(), any());
     }
 
     @Test

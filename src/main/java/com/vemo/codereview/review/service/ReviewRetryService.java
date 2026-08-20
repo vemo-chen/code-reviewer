@@ -22,7 +22,7 @@ public class ReviewRetryService {
         this.reviewStateService = reviewStateService;
     }
 
-    public void handleFailure(CodeReviewTaskEntity task, RuntimeException ex) {
+    public boolean handleFailure(CodeReviewTaskEntity task, RuntimeException ex) {
         FailureUpdate failureUpdate = buildFailureUpdate(task, ex);
         reviewStateService.markTaskFailed(
             task, failureUpdate.nextRetryCount, failureUpdate.nextRetryAt,
@@ -30,6 +30,7 @@ public class ReviewRetryService {
         if (failureUpdate.nextRetryCount > MAX_RETRY_COUNT) {
             reviewStateService.markEventFailed(task.getEventId());
         }
+        return failureUpdate.nextRetryCount > MAX_RETRY_COUNT;
     }
 
     public boolean handleFailure(CodeReviewTaskEntity task, String expectedExecutionToken, RuntimeException ex) {
@@ -44,7 +45,7 @@ public class ReviewRetryService {
         if (failureUpdate.nextRetryCount > MAX_RETRY_COUNT) {
             reviewStateService.markEventFailed(task.getEventId());
         }
-        return true;
+        return failureUpdate.nextRetryCount > MAX_RETRY_COUNT;
     }
 
     private FailureUpdate buildFailureUpdate(CodeReviewTaskEntity task, RuntimeException ex) {

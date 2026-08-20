@@ -10,6 +10,7 @@ import com.vemo.codereview.notify.model.ReviewNotificationMetadata;
 import com.vemo.codereview.notify.service.WeComNotificationService;
 import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
+import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -187,6 +188,47 @@ class WeComNotificationServiceTest {
 
         assertTrue(notified);
         assertEquals(2, mockWebServer.getRequestCount());
+    }
+
+    @Test
+    void shouldSendFailureMarkdownMessageToWeComWebhook() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("{\"errcode\":0,\"errmsg\":\"ok\"}"));
+
+        CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setStatus("FAILED");
+        task.setRetryCount(4);
+        task.setErrorCode("LLM_IO_ERROR");
+        task.setErrorMessage("Model timeout");
+        task.setTargetTitle("Add review pipeline");
+
+        ReviewNotificationMetadata metadata = new ReviewNotificationMetadata();
+        metadata.setReviewTargetType("MR_REVIEW");
+        metadata.setTargetId("7");
+        metadata.setSubmitMessage("fix: improve review worker");
+        metadata.setSubmitter("alice");
+        metadata.setSubmitBranch("feature/review-worker");
+        metadata.setSubmitTime("2026-04-07 18:00:00");
+
+        boolean notified = weComNotificationService.notifyReviewFailure(
+            1001L,
+            metadata,
+            task,
+            mockWebServer.url("/cgi-bin/webhook/send?key=test-key").toString()
+        );
+
+        RecordedRequest request = mockWebServer.takeRequest();
+        JsonNode payload = new ObjectMapper().readTree(request.getBody().readUtf8());
+        String markdown = payload.get("markdown").get("content").asText();
+
+        assertTrue(notified);
+        assertEquals("/cgi-bin/webhook/send?key=test-key", request.getPath());
+        assertTrue(markdown.contains("审查失败"));
+        assertTrue(markdown.contains("LLM_IO_ERROR"));
+        assertTrue(markdown.contains("Model timeout"));
+        assertTrue(markdown.contains("最终失败"));
+        assertTrue(markdown.contains("重试次数"));
     }
 
     private static String repeat(String value, int count) {

@@ -1,7 +1,9 @@
 package com.vemo.codereview.review;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.vemo.codereview.CodeReviewerApplication;
 import com.vemo.codereview.common.exception.DomainException;
@@ -85,7 +87,7 @@ class ReviewRetryServiceTest {
         task.setUpdatedAt(now);
         codeReviewTaskMapper.insert(task);
 
-        reviewRetryService.handleFailure(task, new DomainException("LLM_IO_ERROR", "Model timeout"));
+        assertFalse(reviewRetryService.handleFailure(task, new DomainException("LLM_IO_ERROR", "Model timeout")));
 
         CodeReviewTaskEntity failedTask = codeReviewTaskMapper.selectById(task.getId());
         assertEquals("FAILED", failedTask.getStatus());
@@ -194,7 +196,7 @@ class ReviewRetryServiceTest {
         task.setUpdatedAt(now);
         codeReviewTaskMapper.insert(task);
 
-        reviewRetryService.handleFailure(task, new DomainException("GITLAB_RESPONSE_PARSE_ERROR", "html page returned"));
+        assertTrue(reviewRetryService.handleFailure(task, new DomainException("GITLAB_RESPONSE_PARSE_ERROR", "html page returned")));
 
         CodeReviewTaskEntity failedTask = codeReviewTaskMapper.selectById(task.getId());
         CodeReviewEventEntity failedEvent = codeReviewEventMapper.selectById(event.getId());
@@ -238,7 +240,7 @@ class ReviewRetryServiceTest {
         task.setUpdatedAt(now);
         codeReviewTaskMapper.insert(task);
 
-        reviewRetryService.handleFailure(task, new DomainException("REVIEW_RESULT_PARSE_ERROR", "parse failed"));
+        assertTrue(reviewRetryService.handleFailure(task, new DomainException("REVIEW_RESULT_PARSE_ERROR", "parse failed")));
 
         CodeReviewTaskEntity failedTask = codeReviewTaskMapper.selectById(task.getId());
         CodeReviewEventEntity failedEvent = codeReviewEventMapper.selectById(event.getId());

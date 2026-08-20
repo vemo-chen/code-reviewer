@@ -177,9 +177,10 @@ public class ReviewTaskWorker {
         String expectedMrHeadSha = startingEvent == null ? null : startingEvent.getMrHeadSha();
         boolean completedAtomically = false;
         boolean markEventProcessedAfterCompletion = false;
-        ReviewExecutionContext context;
+        ReviewExecutionContext context = null;
+        ProjectProfileEntity projectConfig = null;
         try {
-            ProjectProfileEntity projectConfig = projectConfigService.findById(task.getProjectId());
+            projectConfig = projectConfigService.findById(task.getProjectId());
             log.info("review project config loaded. taskId={}, projectId={}, elapsedMs={}",
                 task.getId(), task.getProjectId(), elapsedMs(workerStartNs));
             Long gitLabProjectId = resolveGitLabProjectId(task, projectConfig);
@@ -283,7 +284,19 @@ public class ReviewTaskWorker {
         } catch (RuntimeException ex) {
             log.warn("review task failed. taskId={}, elapsedMs={}, message={}",
                 task.getId(), elapsedMs(workerStartNs), ex.getMessage());
-            reviewRetryService.handleFailure(task, executionToken, ex);
+            boolean terminalFailure = reviewRetryService.handleFailure(task, executionToken, ex);
+            if (terminalFailure && shouldNotifyWeCom(projectConfig)) {
+                try {
+                    weComNotificationService.notifyReviewFailure(
+                        task.getProjectId(),
+                        buildNotificationMetadata(task, context, projectConfig),
+                        task,
+                        projectConfig.getWecomWebhookUrl());
+                } catch (RuntimeException notifyEx) {
+                    log.warn("WeCom failure notification failed without changing review task status. taskId={}, message={}",
+                        task.getId(), notifyEx.getMessage());
+                }
+            }
             throw ex;
         }
 

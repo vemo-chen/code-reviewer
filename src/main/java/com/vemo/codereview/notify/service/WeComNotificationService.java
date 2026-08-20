@@ -4,6 +4,7 @@ import com.vemo.codereview.common.config.AppProperties;
 import com.vemo.codereview.notify.client.WeComWebhookClient;
 import com.vemo.codereview.notify.model.ReviewNotificationMetadata;
 import com.vemo.codereview.notify.model.WeComMarkdownPayload;
+import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
 import com.vemo.codereview.review.entity.CodeReviewCommentEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import java.nio.charset.StandardCharsets;
@@ -48,6 +49,26 @@ public class WeComNotificationService {
         WeComMarkdownPayload message = new WeComMarkdownPayload();
         WeComMarkdownPayload.MarkdownPayload markdown = new WeComMarkdownPayload.MarkdownPayload();
         markdown.setContent(buildReviewMarkdown(projectId, metadata, result, comments));
+        message.setMarkdown(markdown);
+        weComWebhookClient.sendMarkdown(webhookUrlOverride, message);
+        return true;
+    }
+
+    public boolean notifyReviewFailure(
+        Long projectId,
+        ReviewNotificationMetadata metadata,
+        CodeReviewTaskEntity task,
+        String webhookUrlOverride) {
+        if (!StringUtils.hasText(webhookUrlOverride)) {
+            return false;
+        }
+        if (task == null) {
+            return false;
+        }
+
+        WeComMarkdownPayload message = new WeComMarkdownPayload();
+        WeComMarkdownPayload.MarkdownPayload markdown = new WeComMarkdownPayload.MarkdownPayload();
+        markdown.setContent(buildReviewFailureMarkdown(projectId, metadata, task));
         message.setMarkdown(markdown);
         weComWebhookClient.sendMarkdown(webhookUrlOverride, message);
         return true;
@@ -157,6 +178,61 @@ public class WeComNotificationService {
         if (StringUtils.hasText(result.getSummary())) {
             builder.append("**总结**\n");
             builder.append(safe(result.getSummary()));
+        }
+        return capMarkdownContent(builder.toString());
+    }
+
+    private String buildReviewFailureMarkdown(
+        Long projectId,
+        ReviewNotificationMetadata metadata,
+        CodeReviewTaskEntity task) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("## AI Code Review\n");
+        builder.append("> 项目ID：<font color=\"comment\">").append(projectId).append("</font>\n");
+        builder.append("> ").append(resolveTargetLabel(metadata == null ? null : metadata.getReviewTargetType()))
+            .append("：<font color=\"comment\">")
+            .append(safe(metadata == null ? null : metadata.getTargetId()))
+            .append("</font>\n");
+        builder.append("> 提交信息：<font color=\"comment\">")
+            .append(safe(metadata == null ? null : metadata.getSubmitMessage()))
+            .append("</font>\n");
+        builder.append("> 提交者：<font color=\"comment\">")
+            .append(safe(metadata == null ? null : metadata.getSubmitter()))
+            .append("</font>\n");
+        builder.append("> 提交分支：<font color=\"comment\">")
+            .append(safe(metadata == null ? null : metadata.getSubmitBranch()))
+            .append("</font>\n");
+        builder.append("> 提交时间：<font color=\"comment\">")
+            .append(safe(metadata == null ? null : metadata.getSubmitTime()))
+            .append("</font>\n");
+        if (metadata != null && StringUtils.hasText(metadata.getAfterSha())) {
+            builder.append("> Push 范围：<font color=\"comment\">")
+                .append(safe(metadata.getPushBranch())).append(" ")
+                .append(safe(metadata.getBeforeSha())).append("..")
+                .append(safe(metadata.getAfterSha())).append(" (")
+                .append(metadata.getCommitCount() == null ? 0 : metadata.getCommitCount())
+                .append(" commits)</font>\n");
+        }
+        builder.append("> 审查状态：<font color=\"warning\">审查失败</font>\n");
+        builder.append("> 重试次数：<font color=\"comment\">")
+            .append(task.getRetryCount() == null ? 0 : task.getRetryCount())
+            .append("</font>\n");
+        if (StringUtils.hasText(task.getErrorCode())) {
+            builder.append("> 错误码：<font color=\"comment\">")
+                .append(safe(task.getErrorCode()))
+                .append("</font>\n");
+        }
+        if (StringUtils.hasText(task.getErrorMessage())) {
+            builder.append("> 错误信息：")
+                .append(safe(task.getErrorMessage()))
+                .append("\n");
+        }
+        builder.append("> 说明：本次审查已到达最终失败，不再继续重试。\n");
+        String platformUrl = appProperties.getPlatformUrl();
+        if (StringUtils.hasText(platformUrl)) {
+            builder.append("请到[代码审查平台](")
+                .append(platformUrl)
+                .append(")查看任务详情。\n");
         }
         return capMarkdownContent(builder.toString());
     }
