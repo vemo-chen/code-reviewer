@@ -322,7 +322,7 @@
           </div>
         </section>
 
-        <section class="detail-section">
+        <section v-if="!isFailedTask(detail)" class="detail-section">
           <h5 class="section-title">问题列表</h5>
           <div v-if="detail.comments.length" class="comment-list">
             <article v-for="comment in detail.comments" :key="comment.id" class="comment-card">
