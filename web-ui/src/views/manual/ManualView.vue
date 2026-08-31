@@ -1,11 +1,11 @@
-<template>
+<template xmlns="http://www.w3.org/1999/html">
   <div class="manual-page">
     <header class="manual-hero">
       <div class="manual-hero__content">
         <p class="manual-kicker">Code Reviewer</p>
         <h1>用户手册</h1>
         <p class="manual-lead">
-          面向使用者的操作说明。这里不讲底层实现，只帮助你快速完成模型配置、项目接入、审查查看和整改闭环。
+          面向使用者的操作说明。帮助你快速完成模型配置、项目接入、审查查看和整改闭环。
         </p>
         <div class="manual-hero__actions">
           <a href="#webhook" class="hero-link">从 GitLab Webhook 开始</a>
@@ -59,7 +59,7 @@
           <div class="content-card">
             <h4>功能说明</h4>
             <ul class="manual-list">
-              <li>🚀 多模型支持 <span style="color:red;">（当前版本仅支持DeepSeek、其他厂商需要做一定适配）</span> </li>
+              <li>🚀 多模型支持 </li>
               <ul>
                 <li>兼容 DeepSeek、ZhipuAI、OpenAI、Anthropic、通义千问 和 Ollama，想用哪个就用哪个。</li>
               </ul>
@@ -104,14 +104,32 @@
             <ol class="manual-steps">
               <li>创建Access Token</li>
               <ul>
-                <li>方法一：在 GitLab 个人设置中，创建一个 Personal Access Token。</li>
-                <li>方法二：在 GitLab 项目设置中，创建Project Access Token</li>
+                <li>在 GitLab 个人设置中，创建一个 Personal Access Token。</li>
+                <div class="webhook-image-block">
+                  <el-image
+                      :src="gitlabAccessTokenImage"
+                      :preview-src-list="[gitlabAccessTokenImage]"
+                      preview-teleported
+                      fit="contain"
+                      alt="GitLab Webhook 配置"
+                      class="webhook-image"
+                  />
+                  <li>结果：</li>
+                  <el-image
+                      :src="gitlabAccessTokenResultImage"
+                      :preview-src-list="[gitlabAccessTokenResultImage]"
+                      preview-teleported
+                      fit="contain"
+                      alt="GitLab Webhook 配置"
+                      class="webhook-image"
+                  />
+                </div>
               </ul>
               <li>配置 Webhook</li>
               <ul>
                 <li>进入 GitLab 对应项目，打开 <strong>Settings / Integrations</strong>。</li>
-                <li>在 URL 填写系统提供的 Webhook 地址，一般是 <code>/api/webhooks/gitlab</code>; 当前环境是<code>http://10.12.8.132:8765/api/webhooks/gitlab</code>。</li>
-                <li>在 Secret Token 中填写系统要求的<strong> Access Token</strong>。若项目已配置项目级 Token，则优先使用项目级 Token。</li>
+                <li>在 URL 填写系统提供的 Webhook 地址，当前平台回调接口为<code>http://10.12.8.132:8765/api/webhooks/gitlab</code>。</li>
+                <li>在 Secret Token 中填写系统要求的<strong> Access Token</strong>。即上一步在个人Settings里创建的Access Token。</li>
                 <li>勾选你希望触发的事件，至少建议开启 <strong>Push events</strong> 和 <strong>Merge request events</strong>。</li>
                 <div class="webhook-image-block">
                   <el-image
@@ -149,7 +167,7 @@
               <li>保存前建议先测试连接，确认模型可用。</li>
             </ol>
             <div class="manual-note">
-              已被项目绑定的模型不能直接删除；默认模型同一时间只允许存在一条。
+              已被项目绑定的模型不能直接删除。
             </div>
           </div>
         </section>
@@ -165,14 +183,23 @@
           <div class="content-card">
             <ol class="manual-steps">
               <li>进入 <strong>项目管理</strong> 页面，点击新建项目。</li>
-              <li>填写项目名称和 GitLab 项目 URL，系统会自动解析 GitLab 项目信息。</li>
+              <li>填写项目名称和 GitLab 项目 URL，以及项目对应的AccessToken（即gitlab配置webhook时填写的token），系统会自动解析 GitLab 项目信息。</li>
               <li>选择参与审查的项目分支（新建时请点击刷新按钮，系统将根据GitLab URL 和 token 自动拉取分支）</li>
               <li>指定项目 Owner。项目 Owner 负责审核整改结果。</li>
               <li>配置项目成员。项目成员拥有查看本项目数据和提交复审的权限。</li>
               <li>配置项目模板。项目模板用于区分 Java 后端、前端、Go、通用等不同技术栈项目的默认审查策略。</li>
               <li>打开 <strong>AI 审查</strong> 开关，并在同一卡片里选择项目使用的模型。</li>
               <li>按需要设置 GitLab Note 回写、企业微信通知、项目 Prompt、项目级 Webhook Token。</li>
-              <li>保存后，再回到 GitLab 项目中配置 Webhook。</li>
+              <div class="webhook-image-block">
+                <el-image
+                    :src="wechatPushImage"
+                    :preview-src-list="[wechatPushImage]"
+                    preview-teleported
+                    fit="contain"
+                    alt="GitLab Webhook 配置"
+                    class="webhook-image"
+                />
+              </div>
             </ol>
             <div class="manual-note">
               普通用户创建项目时，自己会自动成为该项目成员和 Owner；管理员创建项目时需要主动指定 Owner 和成员。
@@ -322,6 +349,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import gitlabSettingImage from "../../assets/images/gitlab-setting.png";
+import gitlabAccessTokenImage from "../../assets/images/gitlab-access-token.png";
+import gitlabAccessTokenResultImage from "../../assets/images/gitlab-access-token-result.png";
+import wechatPushImage from "../../assets/images/wechat-push.png";
 
 const historyDialogVisible = ref(false);
 
