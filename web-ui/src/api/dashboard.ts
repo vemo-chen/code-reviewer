@@ -7,6 +7,8 @@ export interface ReviewTaskQueryParams {
   status?: string;
   fixStatus?: string;
   riskLevel?: string;
+  minScore?: number;
+  maxScore?: number;
   gitlabUsername?: string;
   operatorName?: string;
   targetTitle?: string;

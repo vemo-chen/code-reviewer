@@ -30,6 +30,14 @@
           </el-select>
         </el-form-item>
         <el-form-item>
+          <el-select v-model="queryForm.riskLevel" placeholder="请选择风险等级" clearable filterable>
+            <el-option label="低风险（LOW）" value="LOW" />
+            <el-option label="中风险（MEDIUM）" value="MEDIUM" />
+            <el-option label="高风险（HIGH）" value="HIGH" />
+            <el-option label="严重（CRITICAL）" value="CRITICAL" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
           <el-select
             v-model="queryForm.gitlabUsername"
             placeholder="请选择/输入提交者"
@@ -59,6 +67,19 @@
             end-placeholder="结束日期"
             unlink-panels
           />
+        </el-form-item>
+        <el-form-item label="审查分数" class="score-filter-item">
+          <div class="score-filter">
+            <el-slider
+              v-model="queryForm.scoreRange"
+              range
+              :min="0"
+              :max="100"
+              :step="1"
+              :show-tooltip="false"
+            />
+            <span class="score-filter__value">{{ queryForm.scoreRange[0] }} - {{ queryForm.scoreRange[1] }}</span>
+          </div>
         </el-form-item>
         <el-form-item class="actions">
           <el-button type="warning" native-type="button" :loading="loading" @click="handleSearch">查询</el-button>
@@ -109,6 +130,18 @@
             <span :class="['state-pill', taskStatusClass(row.status)]">
               {{ formatTaskStatus(row.status) }}
             </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="风险等级" min-width="110">
+          <template #default="{ row }">
+            <span :class="['state-pill', riskLevelClass(row.riskLevel)]">
+              {{ row.riskLevel || "--" }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="审查分数" min-width="100">
+          <template #default="{ row }">
+            {{ row.finalScore ?? "--" }}
           </template>
         </el-table-column>
         <el-table-column label="整改状态" min-width="120">
@@ -458,7 +491,8 @@ interface ReviewRecordItem {
   operatorName: string;
   submitTime: string | null;
   updatedAt: string | null;
-  riskLevel: string;
+  riskLevel: string | null;
+  finalScore: number | null;
   summary: string;
   createdAt: string | null;
   finishedAt: string | null;
@@ -599,16 +633,20 @@ const queryForm = reactive<{
   projectId: number | undefined;
   status: string;
   fixStatus: string;
+  riskLevel: string;
   gitlabUsername: string | null;
   targetTitle: string;
   dateRange: string[] | null;
+  scoreRange: [number, number];
 }>({
   projectId: undefined,
   status: "",
   fixStatus: "",
+  riskLevel: "",
   gitlabUsername: "",
   targetTitle: "",
-  dateRange: getDefaultDateRange()
+  dateRange: getDefaultDateRange(),
+  scoreRange: [0, 100]
 });
 const normalizeText = (value: string | null | undefined) => {
   if (typeof value !== "string") {
@@ -622,6 +660,9 @@ const buildQueryParams = () => ({
   projectId: queryForm.projectId,
   status: queryForm.status || undefined,
   fixStatus: queryForm.fixStatus || undefined,
+  riskLevel: queryForm.riskLevel || undefined,
+  minScore: queryForm.scoreRange[0] === 0 ? undefined : queryForm.scoreRange[0],
+  maxScore: queryForm.scoreRange[1] === 100 ? undefined : queryForm.scoreRange[1],
   gitlabUsername: normalizeText(queryForm.gitlabUsername),
   targetTitle: normalizeText(queryForm.targetTitle),
   startDate: Array.isArray(queryForm.dateRange) && queryForm.dateRange.length === 2
@@ -648,9 +689,11 @@ const resetFilters = () => {
   queryForm.projectId = undefined;
   queryForm.status = "";
   queryForm.fixStatus = "";
+  queryForm.riskLevel = "";
   queryForm.gitlabUsername = "";
   queryForm.targetTitle = "";
   queryForm.dateRange = getDefaultDateRange();
+  queryForm.scoreRange = [0, 100];
   sortState.sortField = undefined;
   sortState.sortOrder = undefined;
   reviewTableRef.value?.clearSort?.();
@@ -1312,9 +1355,34 @@ onMounted(async () => {
   width: 320px;
 }
 
+:deep(.el-form--inline .el-form-item.score-filter-item) {
+  width: 300px;
+}
+
 :deep(.el-form--inline .el-form-item.actions) {
   width: auto;
   margin-left: auto;
+}
+
+.score-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.score-filter :deep(.el-slider) {
+  flex: 1;
+  min-width: 130px;
+}
+
+.score-filter__value {
+  flex: 0 0 58px;
+  color: var(--cr-text-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
 }
 
 :deep(.el-input),
@@ -2257,6 +2325,10 @@ onMounted(async () => {
 }
 
 @media (max-width: 960px) {
+  :deep(.el-form--inline .el-form-item.score-filter-item) {
+    width: 100%;
+  }
+
   :deep(.el-form--inline .el-form-item.actions) {
     margin-left: 0;
   }

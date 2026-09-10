@@ -2,7 +2,15 @@
 
 ## 1. 审查任务分页
 
-`GET /api/dashboard/review-tasks?pageNo=1&pageSize=10`
+`GET /api/dashboard/review-tasks?pageNo=1&pageSize=10&riskLevel=HIGH&minScore=60&maxScore=79`
+
+可选查询参数：
+
+- `riskLevel`：`LOW`、`MEDIUM`、`HIGH` 或 `CRITICAL`
+- `minScore`：审查分数下限，闭区间，取值 `0-100`
+- `maxScore`：审查分数上限，闭区间，取值 `0-100`
+
+`minScore` 和 `maxScore` 可以单独传递，同时传递时要求 `minScore <= maxScore`。传递任一分数条件时，不返回审查分数为空的记录。
 
 返回字段包含：
 
@@ -15,6 +23,7 @@
 - `retryCount`
 - `operatorName`
 - `riskLevel`
+- `finalScore`
 - `summary`
 - `errorCode`
 - `errorMessage`

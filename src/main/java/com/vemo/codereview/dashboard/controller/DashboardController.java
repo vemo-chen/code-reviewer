@@ -42,6 +42,8 @@ public class DashboardController {
         @RequestParam(required = false) String status,
         @RequestParam(required = false) String fixStatus,
         @RequestParam(required = false) String riskLevel,
+        @RequestParam(required = false) Integer minScore,
+        @RequestParam(required = false) Integer maxScore,
         @RequestParam(required = false) String gitlabUsername,
         @RequestParam(required = false) String operatorName,
         @RequestParam(required = false) String targetTitle,
@@ -56,6 +58,8 @@ public class DashboardController {
         request.setStatus(status);
         request.setFixStatus(fixStatus);
         request.setRiskLevel(riskLevel);
+        request.setMinScore(minScore);
+        request.setMaxScore(maxScore);
         request.setGitlabUsername(gitlabUsername);
         request.setOperatorName(operatorName);
         request.setTargetTitle(targetTitle);

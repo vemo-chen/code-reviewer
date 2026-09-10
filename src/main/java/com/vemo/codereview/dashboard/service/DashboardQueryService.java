@@ -94,6 +94,7 @@ public class DashboardQueryService {
     }
 
     public ReviewTaskPageResponse pageReviewTasks(ReviewTaskQueryRequest request) {
+        validateScoreRange(request);
         long pageNo = request.getPageNo() <= 0 ? 1 : request.getPageNo();
         long pageSize = request.getPageSize() <= 0 ? 10 : request.getPageSize();
         List<Long> accessibleProjectIds = projectPermissionService.getAccessibleProjectIds();
@@ -125,6 +126,18 @@ public class DashboardQueryService {
         response.setTotal(page.getTotal());
         response.setRecords(records);
         return response;
+    }
+
+    private void validateScoreRange(ReviewTaskQueryRequest request) {
+        Integer minScore = request.getMinScore();
+        Integer maxScore = request.getMaxScore();
+        if (minScore != null && (minScore < 0 || minScore > 100)
+            || maxScore != null && (maxScore < 0 || maxScore > 100)) {
+            throw new IllegalArgumentException("Score must be between 0 and 100");
+        }
+        if (minScore != null && maxScore != null && minScore > maxScore) {
+            throw new IllegalArgumentException("Minimum score must not exceed maximum score");
+        }
     }
 
     private String resolveReviewTaskOrderBy(ReviewTaskQueryRequest request) {
@@ -507,40 +520,53 @@ public class DashboardQueryService {
     private Set<Long> resolveTaskIdsForCrossTableFilters(ReviewTaskQueryRequest request) {
         Set<Long> ids = null;
         if (StringUtils.hasText(request.getStartDate()) || StringUtils.hasText(request.getEndDate())) {
-            Set<Long> submitTimeTaskIds = resolveTaskIdsBySubmitTimeRange(request.getStartDate(), request.getEndDate());
-            ids = submitTimeTaskIds;
+            ids = intersectTaskIds(ids, resolveTaskIdsBySubmitTimeRange(request.getStartDate(), request.getEndDate()));
         }
         if (StringUtils.hasText(request.getRiskLevel())) {
             QueryWrapper<CodeReviewResultEntity> wrapper = new QueryWrapper<CodeReviewResultEntity>();
             wrapper.eq("risk_level", request.getRiskLevel().trim());
-            List<CodeReviewResultEntity> results = codeReviewResultMapper.selectList(wrapper);
-            Set<Long> resultTaskIds = new HashSet<Long>();
-            for (CodeReviewResultEntity result : results) {
-                if (result.getTaskId() != null) {
-                    resultTaskIds.add(result.getTaskId());
-                }
+            ids = intersectTaskIds(ids, resolveTaskIdsByResultFilter(wrapper));
+        }
+        if (request.getMinScore() != null || request.getMaxScore() != null) {
+            QueryWrapper<CodeReviewResultEntity> wrapper = new QueryWrapper<CodeReviewResultEntity>();
+            if (request.getMinScore() != null) {
+                wrapper.ge("final_score", request.getMinScore());
             }
-            ids = resultTaskIds;
+            if (request.getMaxScore() != null) {
+                wrapper.le("final_score", request.getMaxScore());
+            }
+            ids = intersectTaskIds(ids, resolveTaskIdsByResultFilter(wrapper));
         }
         if (StringUtils.hasText(request.getGitlabUsername())) {
             String keyword = request.getGitlabUsername().trim();
             Set<Long> gitlabUserTaskIds = resolveTaskIdsByEventFilter("operator_id", keyword, false);
             gitlabUserTaskIds.addAll(resolveTaskIdsByEventFilter("operator_name", keyword, true));
-            if (ids == null) {
-                ids = gitlabUserTaskIds;
-            } else {
-                ids.retainAll(gitlabUserTaskIds);
-            }
+            ids = intersectTaskIds(ids, gitlabUserTaskIds);
         }
         if (StringUtils.hasText(request.getOperatorName())) {
             Set<Long> eventTaskIds = resolveTaskIdsByEventFilter("operator_name", request.getOperatorName().trim(), true);
-            if (ids == null) {
-                ids = eventTaskIds;
-            } else {
-                ids.retainAll(eventTaskIds);
-            }
+            ids = intersectTaskIds(ids, eventTaskIds);
         }
         return ids;
+    }
+
+    private Set<Long> intersectTaskIds(Set<Long> current, Set<Long> candidate) {
+        if (current == null) {
+            return candidate;
+        }
+        current.retainAll(candidate);
+        return current;
+    }
+
+    private Set<Long> resolveTaskIdsByResultFilter(QueryWrapper<CodeReviewResultEntity> wrapper) {
+        List<CodeReviewResultEntity> results = codeReviewResultMapper.selectList(wrapper);
+        Set<Long> taskIds = new HashSet<Long>();
+        for (CodeReviewResultEntity result : results) {
+            if (result.getTaskId() != null) {
+                taskIds.add(result.getTaskId());
+            }
+        }
+        return taskIds;
     }
 
     private Set<Long> resolveTaskIdsBySubmitTimeRange(String startDate, String endDate) {

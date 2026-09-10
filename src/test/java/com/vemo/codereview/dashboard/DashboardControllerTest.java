@@ -155,6 +155,91 @@ class DashboardControllerTest {
     }
 
     @Test
+    void shouldFilterReviewTasksByRiskLevelAndScoreRange() throws Exception {
+        insertReviewFixture(
+            "bob", "High score outside range", "2026-04-02 10:30:00", "HIGH", 88, 2);
+        insertReviewFixture(
+            "alice", "Low score in range", "2026-04-02 11:30:00", "LOW", 70, 3);
+        insertReviewFixture(
+            "alice", "No result task", "2026-04-02 12:30:00", null, null, 4);
+
+        mockMvc.perform(get("/api/dashboard/review-tasks")
+                .header("Authorization", adminToken)
+                .param("pageNo", "1")
+                .param("pageSize", "20")
+                .param("riskLevel", "HIGH")
+                .param("minScore", "70")
+                .param("maxScore", "80"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.total").value(1))
+            .andExpect(jsonPath("$.data.records[0].riskLevel").value("HIGH"))
+            .andExpect(jsonPath("$.data.records[0].finalScore").value(76));
+    }
+
+    @Test
+    void shouldIntersectScoreFilterWithSubmitterAndDateFilters() throws Exception {
+        insertReviewFixture(
+            "bob", "High score outside range", "2026-04-02 10:30:00", "HIGH", 88, 2);
+        insertReviewFixture(
+            "alice", "Low score in range", "2026-04-02 11:30:00", "LOW", 70, 3);
+        insertReviewFixture(
+            "alice", "No result task", "2026-04-02 12:30:00", null, null, 4);
+
+        mockMvc.perform(get("/api/dashboard/review-tasks")
+                .header("Authorization", adminToken)
+                .param("pageNo", "1")
+                .param("pageSize", "20")
+                .param("gitlabUsername", "alice")
+                .param("startDate", "2026-04-02")
+                .param("endDate", "2026-04-02")
+                .param("minScore", "70")
+                .param("maxScore", "80"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.total").value(2));
+    }
+
+    @Test
+    void shouldExcludeTasksWithoutScoreWhenScoreFilterIsPresent() throws Exception {
+        insertReviewFixture(
+            "bob", "High score outside range", "2026-04-02 10:30:00", "HIGH", 88, 2);
+        insertReviewFixture(
+            "alice", "Low score in range", "2026-04-02 11:30:00", "LOW", 70, 3);
+        insertReviewFixture(
+            "alice", "No result task", "2026-04-02 12:30:00", null, null, 4);
+
+        mockMvc.perform(get("/api/dashboard/review-tasks")
+                .header("Authorization", adminToken)
+                .param("pageNo", "1")
+                .param("pageSize", "20")
+                .param("minScore", "0")
+                .param("maxScore", "100"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.total").value(3));
+    }
+
+    @Test
+    void shouldRejectInvalidScoreRange() throws Exception {
+        mockMvc.perform(get("/api/dashboard/review-tasks")
+                .header("Authorization", adminToken)
+                .param("minScore", "80")
+                .param("maxScore", "70"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldReturnEmptyPageWhenDateFilterHasNoMatchesWithResultFilter() throws Exception {
+        mockMvc.perform(get("/api/dashboard/review-tasks")
+                .header("Authorization", adminToken)
+                .param("pageNo", "1")
+                .param("pageSize", "20")
+                .param("riskLevel", "HIGH")
+                .param("startDate", "2026-05-01")
+                .param("endDate", "2026-05-01"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
     void shouldOrderReviewTaskPageBySubmitTimeDesc() throws Exception {
         Date laterCreatedAt = new java.text.SimpleDateFormat("yyyy-MM-dd").parse("2026-04-04");
         Date earlierSubmitTime = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse("2026-04-01 08:00:00");
@@ -333,6 +418,65 @@ class DashboardControllerTest {
             .andExpect(jsonPath("$.data.averageFinalScore").value(76.0))
             .andExpect(jsonPath("$.data.projects[0].projectName").value("code-reviewer"))
             .andExpect(jsonPath("$.data.developers[0].developerName").value("alice"));
+    }
+
+    private void insertReviewFixture(
+        String operatorName,
+        String targetTitle,
+        String submitTimeText,
+        String riskLevel,
+        Integer finalScore,
+        int fixtureNumber) throws Exception {
+        Date now = new java.text.SimpleDateFormat("yyyy-MM-dd").parse("2026-04-03");
+        Date submitTime = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(submitTimeText);
+
+        CodeReviewEventEntity event = new CodeReviewEventEntity();
+        event.setSourcePlatform("gitlab");
+        event.setEventType("push");
+        event.setProjectId(1001L);
+        event.setProjectName("code-reviewer");
+        event.setObjectId("fixture-" + fixtureNumber);
+        event.setObjectType("commit");
+        event.setOperatorId(operatorName);
+        event.setOperatorName(operatorName);
+        event.setSubmitTime(submitTime);
+        event.setIdempotentKey("dashboard-fixture-" + fixtureNumber);
+        event.setPayloadJson("{\"ref\":\"refs/heads/main\"}");
+        event.setStatus("TASK_CREATED");
+        event.setCreatedAt(now);
+        event.setUpdatedAt(now);
+        codeReviewEventMapper.insert(event);
+
+        CodeReviewTaskEntity task = new CodeReviewTaskEntity();
+        task.setEventId(event.getId());
+        task.setTaskType("PUSH_REVIEW");
+        task.setSourcePlatform("gitlab");
+        task.setProjectId(1001L);
+        task.setTargetId("fixture-" + fixtureNumber);
+        task.setTargetTitle(targetTitle);
+        task.setStatus("SUCCESS");
+        task.setRetryCount(0);
+        task.setCreatedAt(now);
+        task.setFinishedAt(now);
+        task.setUpdatedAt(now);
+        codeReviewTaskMapper.insert(task);
+
+        if (riskLevel == null && finalScore == null) {
+            return;
+        }
+
+        CodeReviewResultEntity result = new CodeReviewResultEntity();
+        result.setTaskId(task.getId());
+        result.setProviderName("openai-compatible");
+        result.setModelName("gpt-4o-mini");
+        result.setRiskLevel(riskLevel);
+        result.setSuggestedScore(finalScore);
+        result.setDeductionScore(0);
+        result.setFinalScore(finalScore);
+        result.setSummary(targetTitle);
+        result.setBriefSummary(targetTitle);
+        result.setCreatedAt(now);
+        codeReviewResultMapper.insert(result);
     }
 
     private UserEntity createUser(Long id, String username, String role) {

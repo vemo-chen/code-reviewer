@@ -13,6 +13,8 @@ public class ReviewTaskQueryRequest {
     private String status;
     private String fixStatus;
     private String riskLevel;
+    private Integer minScore;
+    private Integer maxScore;
     private String gitlabUsername;
     private String operatorName;
     private String targetTitle;
