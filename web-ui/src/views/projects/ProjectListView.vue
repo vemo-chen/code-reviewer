@@ -214,8 +214,9 @@
                 :max-collapse-tags="5"
                 collapse-tags-tooltip
                 :loading="branchLoading"
+                @change="handleReviewBranchesChange"
               >
-                <el-option v-for="item in reviewBranchOptions" :key="item.name" :label="formatBranchLabel(item)" :value="item.name">
+                <el-option v-for="item in reviewBranchOptions" :key="item.name" :label="formatBranchLabel(item)" :value="item.name" :disabled="projectForm.excludedReviewBranches.includes(item.name)">
                   <span>{{ item.name }}</span>
                   <span v-if="item.defaultBranch" class="branch-option-meta">{{ texts.defaultBranch }}</span>
                   <span v-if="item.protectedBranch" class="branch-option-meta">{{ texts.protectedBranch }}</span>
@@ -238,6 +239,30 @@
               </el-tooltip>
             </div>
             <p class="member-hint">{{ texts.reviewBranchesHint }}</p>
+          </el-form-item>
+          <el-form-item :label="texts.excludedReviewBranches">
+            <el-select
+              v-model="projectForm.excludedReviewBranches"
+              class="full-width"
+              :placeholder="texts.excludedReviewBranchesPlaceholder"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              collapse-tags
+              :max-collapse-tags="5"
+              collapse-tags-tooltip
+              :loading="branchLoading"
+              @change="handleExcludedReviewBranchesChange"
+            >
+              <el-option v-for="item in reviewBranchOptions" :key="`excluded-${item.name}`" :label="formatBranchLabel(item)" :value="item.name" :disabled="projectForm.reviewBranches.includes(item.name)">
+                <span>{{ item.name }}</span>
+                <span v-if="item.defaultBranch" class="branch-option-meta">{{ texts.defaultBranch }}</span>
+                <span v-if="item.protectedBranch" class="branch-option-meta">{{ texts.protectedBranch }}</span>
+                <span v-if="item.missing" class="branch-option-missing">{{ texts.missingBranch }}</span>
+              </el-option>
+            </el-select>
+            <p class="member-hint">{{ texts.excludedReviewBranchesHint }}</p>
           </el-form-item>
           <el-form-item v-if="showOwnerField" :label="texts.projectOwner">
             <el-select v-model="projectForm.ownerUserId" class="full-width" :placeholder="texts.projectOwnerPlaceholder" clearable filterable @change="handleOwnerChange">
@@ -454,12 +479,13 @@ interface LlmModelOption { id: number; configName: string; providerCode: string;
 interface ProjectItem {
   id: number; projectName: string; sourcePlatform: string; gitlabProjectId: number | null; gitlabProjectUrl: string; gitlabWebhookToken: string;
   reviewBranches?: string | null;
+  excludedReviewBranches?: string | null;
   ownerUserId?: number | null; templateId?: number | null; templateName?: string | null; supportedFileExtensions?: string | null; llmModelId?: number | null; aiReviewEnabled: boolean; reviewContextEnabled?: boolean; gitlabNoteEnabled: boolean; wecomNotifyEnabled: boolean;
   wecomWebhookUrl: string; promptContent: string; active: boolean; updatedAt: string | null;
 }
 interface ProjectForm {
   id?: number; projectName: string; sourcePlatform: string; gitlabProjectUrl: string; gitlabWebhookToken: string; ownerUserId?: number | null;
-  reviewBranches: string[]; templateId?: number | null; supportedFileExtensions: string; memberUserIds: number[]; llmModelId?: number | null; aiReviewEnabled: boolean; reviewContextEnabled: boolean; gitlabNoteEnabled: boolean; wecomNotifyEnabled: boolean;
+  reviewBranches: string[]; excludedReviewBranches: string[]; templateId?: number | null; supportedFileExtensions: string; memberUserIds: number[]; llmModelId?: number | null; aiReviewEnabled: boolean; reviewContextEnabled: boolean; gitlabNoteEnabled: boolean; wecomNotifyEnabled: boolean;
   wecomWebhookUrl: string; promptContent: string; active: boolean;
 }
 interface ReviewBranchOption extends GitLabBranchOption { missing?: boolean; }
@@ -489,11 +515,11 @@ const texts = {
   createTemplate: "\u65b0\u5efa\u6a21\u677f", editTemplate: "\u7f16\u8f91\u6a21\u677f", templateName: "\u6a21\u677f\u540d\u79f0", templateNamePlaceholder: "\u8bf7\u8f93\u5165\u6a21\u677f\u540d\u79f0", templateDesc: "\u6a21\u677f\u63cf\u8ff0", templateDescPlaceholder: "\u8bf7\u8f93\u5165\u6a21\u677f\u63cf\u8ff0", fileExtensions: "\u9002\u7528\u6587\u4ef6\u540e\u7f00", fileExtensionsPlaceholder: "\u4f8b\u5982\uff1a.java,.xml,.properties,.yml", reviewPromptStatus: "Review \u63d0\u793a\u8bcd", configured: "\u5df2\u914d\u7f6e", notConfigured: "\u672a\u914d\u7f6e", baseReviewPrompt: "\u57fa\u7840 review \u63d0\u793a\u8bcd\u6a21\u677f", baseReviewPromptPlaceholder: "\u8bf7\u8f93\u5165\u6a21\u677f\u7ea7\u57fa\u7840 review \u63d0\u793a\u8bcd",
   templateSection: "\u6a21\u677f\u914d\u7f6e", projectTemplateSelect: "\u9879\u76ee\u6a21\u677f", projectTemplateSelectPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee\u6a21\u677f", projectTemplateSelectDesc: "\u9009\u62e9\u9879\u76ee\u6240\u5c5e\u7684\u5ba1\u67e5\u6a21\u677f\uff0c\u7528\u4e8e\u63d0\u4f9b\u9ed8\u8ba4\u6587\u4ef6\u540e\u7f00\u548c Prompt \u914d\u7f6e\u3002", fileExtensionsOverride: "\u652f\u6301\u7684\u6587\u4ef6\u6269\u5c55\u540d", fileExtensionsOverrideDesc: "\u7559\u7a7a\u4e14\u5df2\u9009\u6a21\u677f\u65f6\uff0c\u4f7f\u7528\u6a21\u677f\u914d\u7f6e\u3002", projectPromptDesc: "\u7559\u7a7a\u4e14\u5df2\u9009\u6a21\u677f\u65f6\uff0c\u4f7f\u7528\u6a21\u677f\u63d0\u793a\u8bcd\uff1b\u5426\u5219\u4f18\u5148\u4f7f\u7528\u9879\u76ee Prompt\u3002",
   search: "\u67e5\u8be2", reset: "\u91cd\u7f6e", createProject: "\u65b0\u5efa\u9879\u76ee", editProject: "\u7f16\u8f91\u9879\u76ee", viewProject: "\u67e5\u770b\u9879\u76ee", aiReview: "AI \u5ba1\u67e5", reviewContext: "\u6df1\u5ea6\u5ba1\u67e5", gitlabNote: "GitLab \u56de\u5199", wecomNotify: "\u4f01\u5fae\u901a\u77e5", active: "\u662f\u5426\u542f\u7528", updatedAt: "\u66f4\u65b0\u65f6\u95f4", actions: "\u64cd\u4f5c",
-  edit: "\u7f16\u8f91", delete: "\u5220\u9664", moreActions: "\u66f4\u591a\u64cd\u4f5c", customReview: "\u81ea\u5b9a\u4e49\u5ba1\u67e5", customReviewDialogTitle: "\u81ea\u5b9a\u4e49\u5ba1\u67e5", customReviewBasicInfo: "\u5ba1\u67e5\u8303\u56f4", customReviewBranchPlaceholder: "\u8bf7\u9009\u62e9\u5ba1\u67e5\u5206\u652f", customReviewBranchScopeHint: "\u4ec5\u672c\u6b21\u9009\u4e2d\u7684\u5206\u652f\u4f1a\u53c2\u4e0e\u6279\u91cf\u5ba1\u67e5\uff0c\u9009\u62e9\u8303\u56f4\u9650\u5b9a\u5728\u9879\u76ee reviewBranches \u5185\u3002", customReviewTimeRange: "\u63d0\u4ea4\u65f6\u95f4\u533a\u95f4", customReviewDateRangeSeparator: "\u81f3", customReviewDateRangeStart: "\u5f00\u59cb\u65f6\u95f4", customReviewDateRangeEnd: "\u7ed3\u675f\u65f6\u95f4", customReviewMode: "\u5904\u7406\u65b9\u5f0f", skipReviewed: "\u8df3\u8fc7\u5df2\u5ba1\u67e5", forceRereview: "\u5f3a\u5236\u91cd\u5ba1", customReviewModeHint: "\u9ed8\u8ba4\u8df3\u8fc7\u5df2\u6709\u7ed3\u679c\u7684 commit\u3002\u5982\u9700\u8981\u8986\u76d6\u65e7\u7ed3\u679c\uff0c\u518d\u9009\u62e9\u5f3a\u5236\u91cd\u5ba1\u3002", customReviewSubmit: "\u5f00\u59cb\u5ba1\u67e5", validateCustomReviewBranches: "\u8bf7\u9009\u62e9\u81f3\u5c11\u4e00\u4e2a\u5ba1\u67e5\u5206\u652f", validateCustomReviewTimeRange: "\u8bf7\u9009\u62e9\u63d0\u4ea4\u65f6\u95f4\u533a\u95f4", customReviewSuccessPrefix: "\u81ea\u5b9a\u4e49\u5ba1\u67e5\u5df2\u63d0\u4ea4\uff1a", customReviewFail: "\u81ea\u5b9a\u4e49\u5ba1\u67e5\u63d0\u4ea4\u5931\u8d25", customReviewAllBranches: "\u5168\u90e8\u5206\u652f", totalPrefix: "\u5171", totalSuffix: "\u6761", pageSize10: "10\u6761/\u9875", pageSize20: "20\u6761/\u9875", pageSize50: "50\u6761/\u9875",
+  edit: "\u7f16\u8f91", delete: "\u5220\u9664", moreActions: "\u66f4\u591a\u64cd\u4f5c", customReview: "\u81ea\u5b9a\u4e49\u5ba1\u67e5", customReviewDialogTitle: "\u81ea\u5b9a\u4e49\u5ba1\u67e5", customReviewBasicInfo: "\u5ba1\u67e5\u8303\u56f4", customReviewBranchPlaceholder: "\u8bf7\u9009\u62e9\u5ba1\u67e5\u5206\u652f", customReviewBranchScopeHint: "\u4ec5\u672c\u6b21\u9009\u4e2d\u7684\u5206\u652f\u4f1a\u53c2\u4e0e\u6279\u91cf\u5ba1\u67e5\uff0c\u9009\u62e9\u8303\u56f4\u9650\u5b9a\u5728\u9879\u76ee\u914d\u7f6e\u5185\uff0c\u6392\u9664\u5206\u652f\u4e0d\u4f1a\u53c2\u4e0e\u5ba1\u67e5\u3002", customReviewTimeRange: "\u63d0\u4ea4\u65f6\u95f4\u533a\u95f4", customReviewDateRangeSeparator: "\u81f3", customReviewDateRangeStart: "\u5f00\u59cb\u65f6\u95f4", customReviewDateRangeEnd: "\u7ed3\u675f\u65f6\u95f4", customReviewMode: "\u5904\u7406\u65b9\u5f0f", skipReviewed: "\u8df3\u8fc7\u5df2\u5ba1\u67e5", forceRereview: "\u5f3a\u5236\u91cd\u5ba1", customReviewModeHint: "\u9ed8\u8ba4\u8df3\u8fc7\u5df2\u6709\u7ed3\u679c\u7684 commit\u3002\u5982\u9700\u8981\u8986\u76d6\u65e7\u7ed3\u679c\uff0c\u518d\u9009\u62e9\u5f3a\u5236\u91cd\u5ba1\u3002", customReviewSubmit: "\u5f00\u59cb\u5ba1\u67e5", validateCustomReviewBranches: "\u8bf7\u9009\u62e9\u81f3\u5c11\u4e00\u4e2a\u5ba1\u67e5\u5206\u652f", validateCustomReviewTimeRange: "\u8bf7\u9009\u62e9\u63d0\u4ea4\u65f6\u95f4\u533a\u95f4", customReviewSuccessPrefix: "\u81ea\u5b9a\u4e49\u5ba1\u67e5\u5df2\u63d0\u4ea4\uff1a", customReviewFail: "\u81ea\u5b9a\u4e49\u5ba1\u67e5\u63d0\u4ea4\u5931\u8d25", customReviewAllBranches: "\u5168\u90e8\u5206\u652f", totalPrefix: "\u5171", totalSuffix: "\u6761", pageSize10: "10\u6761/\u9875", pageSize20: "20\u6761/\u9875", pageSize50: "50\u6761/\u9875",
   view: "\u67e5\u770b", viewTemplate: "\u67e5\u770b\u9879\u76ee\u6a21\u677f", close: "\u5173\u95ed",
   webhookToken: "Webhook Token", webhookTokenPlaceholder: "\u8bf7\u8f93\u5165 GitLab Webhook Token", testGitLab: "\u6d4b\u8bd5 GitLab", testConnection: "\u6d4b\u8bd5\u8fde\u63a5", projectOwner: "\u9879\u76ee Owner", projectOwnerPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee Owner",
   projectMembers: "\u9879\u76ee\u6210\u5458", projectMembersPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee\u6210\u5458", creatorHint: "\u521b\u5efa\u540e\u4f60\u5c06\u81ea\u52a8\u6210\u4e3a\u8be5\u9879\u76ee\u7684 Owner \u548c\u6210\u5458\uff0c\u53ef\u989d\u5916\u6307\u5b9a\u5176\u4ed6\u9879\u76ee\u6210\u5458\u3002", memberHint: "\u9879\u76ee\u6210\u5458\u652f\u6301\u591a\u9009\uff0c\u9879\u76ee Owner \u4f1a\u81ea\u52a8\u4fdd\u6301\u5728\u6210\u5458\u5217\u8868\u4e2d\u3002",
-  reviewBranches: "\u5ba1\u67e5\u5206\u652f", reviewBranchesPlaceholder: "\u8bf7\u9009\u62e9\u9700\u8981 AI \u5ba1\u67e5\u7684\u5206\u652f", reviewBranchesHint: "\u7559\u7a7a\u8868\u793a\u6240\u6709\u5206\u652f\u90fd\u89e6\u53d1\u5ba1\u67e5\uff1b\u5df2\u5220\u9664\u7684\u5df2\u9009\u5206\u652f\u4f1a\u4fdd\u7559\uff0c\u9700\u8981\u624b\u52a8\u53d6\u6d88\u624d\u4f1a\u79fb\u9664\u3002", refreshBranches: "\u5237\u65b0\u5206\u652f", loadBranchesFail: "\u52a0\u8f7d GitLab \u5206\u652f\u5931\u8d25", defaultBranch: "\u9ed8\u8ba4", protectedBranch: "\u4fdd\u62a4", missingBranch: "\u5f53\u524d\u4e0d\u5b58\u5728",
+  reviewBranches: "\u5ba1\u67e5\u5206\u652f", reviewBranchesPlaceholder: "\u8bf7\u9009\u62e9\u9700\u8981 AI \u5ba1\u67e5\u7684\u5206\u652f", reviewBranchesHint: "\u7559\u7a7a\u8868\u793a\u6240\u6709\u5206\u652f\u90fd\u89e6\u53d1\u5ba1\u67e5\uff1b\u5df2\u5220\u9664\u7684\u5df2\u9009\u5206\u652f\u4f1a\u4fdd\u7559\uff0c\u9700\u8981\u624b\u52a8\u53d6\u6d88\u624d\u4f1a\u79fb\u9664\u3002", excludedReviewBranches: "\u6392\u9664\u5ba1\u67e5\u5206\u652f", excludedReviewBranchesPlaceholder: "\u8bf7\u9009\u62e9\u4e0d\u53c2\u4e0e AI \u5ba1\u67e5\u7684\u5206\u652f", excludedReviewBranchesHint: "\u6392\u9664\u5206\u652f\u4f18\u5148\u4e8e\u5ba1\u67e5\u5206\u652f\uff1b\u4e24\u8005\u90fd\u7559\u7a7a\u65f6\u5ba1\u67e5\u6240\u6709\u5206\u652f\u3002", refreshBranches: "\u5237\u65b0\u5206\u652f", loadBranchesFail: "\u52a0\u8f7d GitLab \u5206\u652f\u5931\u8d25", defaultBranch: "\u9ed8\u8ba4", protectedBranch: "\u4fdd\u62a4", missingBranch: "\u5f53\u524d\u4e0d\u5b58\u5728",
   switchSection: "\u529f\u80fd\u5f00\u5173", aiReviewDesc: "\u63a7\u5236\u9879\u76ee\u662f\u5426\u81ea\u52a8\u89e6\u53d1 AI \u4ee3\u7801\u5ba1\u67e5\u3002", reviewContextDesc: "\u5f00\u542f\u540e\u4f1a\u81ea\u52a8\u62c9\u53d6\u5b8c\u6574\u6587\u4ef6\u5e76\u6269\u5c55\u5230\u51fd\u6570\u6216\u7c7b\u7ea7\u4e0a\u4e0b\u6587\uff0c\u5ba1\u67e5\u66f4\u51c6\u786e\uff0c\u4f46\u4f1a\u589e\u52a0 token \u6d88\u8017\u548c\u8d39\u7528\u3002", reviewModel: "\u5ba1\u67e5\u6a21\u578b", reviewModelPlaceholder: "\u8bf7\u9009\u62e9\u9879\u76ee\u4f7f\u7528\u7684\u5927\u6a21\u578b",
   gitlabNoteDesc: "\u5c06\u5ba1\u67e5\u7ed3\u679c\u81ea\u52a8\u56de\u5199\u5230 GitLab \u5907\u6ce8\u4e2d\u3002", wecomNotifyDesc: "\u6839\u636e\u9879\u76ee\u914d\u7f6e\u5411\u4f01\u4e1a\u5fae\u4fe1\u63a8\u9001\u5ba1\u67e5\u7ed3\u679c\u3002", wecomWebhook: "\u4f01\u5fae Webhook", wecomWebhookPlaceholder: "\u8bf7\u8f93\u5165\u4f01\u4e1a\u5fae\u4fe1 Webhook",
   activeDesc: "\u5173\u95ed\u540e\u9879\u76ee\u5c06\u4e0d\u518d\u53c2\u4e0e\u81ea\u52a8\u5ba1\u67e5\u6d41\u7a0b\u3002", projectPrompt: "\u9879\u76ee Prompt", projectPromptPlaceholder: "\u586b\u5199\u9879\u76ee\u7ea7\u8865\u5145\u89c4\u8303\uff0c\u4e3a\u7a7a\u65f6\u53ea\u4f7f\u7528\u516c\u5171\u89c4\u5219",
@@ -521,7 +547,7 @@ const queryForm = reactive({ projectName: "", gitlabProjectUrl: "", aiReviewEnab
 const templateQueryForm = reactive({ templateName: "" });
 const activeQuery = reactive({ projectName: "", gitlabProjectUrl: "", aiReviewEnabled: undefined as boolean | undefined, wecomNotifyEnabled: undefined as boolean | undefined });
 const activeTemplateQuery = reactive({ templateName: "" });
-const projectForm = reactive<ProjectForm>({ projectName: "", sourcePlatform: "gitlab", gitlabProjectUrl: "", gitlabWebhookToken: "", reviewBranches: [], ownerUserId: null, templateId: null, supportedFileExtensions: "", memberUserIds: [], llmModelId: null, aiReviewEnabled: true, reviewContextEnabled: true, gitlabNoteEnabled: true, wecomNotifyEnabled: false, wecomWebhookUrl: "", promptContent: "", active: true });
+const projectForm = reactive<ProjectForm>({ projectName: "", sourcePlatform: "gitlab", gitlabProjectUrl: "", gitlabWebhookToken: "", reviewBranches: [], excludedReviewBranches: [], ownerUserId: null, templateId: null, supportedFileExtensions: "", memberUserIds: [], llmModelId: null, aiReviewEnabled: true, reviewContextEnabled: true, gitlabNoteEnabled: true, wecomNotifyEnabled: false, wecomWebhookUrl: "", promptContent: "", active: true });
 const projectRules: FormRules<ProjectForm> = { projectName: [{ required: true, message: texts.validateProjectName, trigger: "blur" }], gitlabProjectUrl: [{ required: true, message: texts.validateGitlabUrl, trigger: "blur" }], gitlabWebhookToken: [{ required: true, message: texts.warningGitlabToken, trigger: "blur" }] };
 const customReviewForm = reactive<CustomReviewForm>({ projectId: undefined, projectName: "", selectedReviewBranches: [], reviewBranchOptions: [], dateRange: [], reviewMode: "SKIP_REVIEWED" });
 const customReviewRules: FormRules<CustomReviewForm> = {
@@ -556,7 +582,7 @@ const currentUserId = computed(() => authStore.user?.userId ?? null); const show
 const projectReadOnly = computed(() => dialogMode.value === "view");
 const memberCandidateOptions = computed(() => selectableUsers.value.filter((item) => item.status === "ENABLE" && item.role !== "ADMIN")); const ownerCandidateOptions = computed(() => memberCandidateOptions.value); const projectLlmModelOptions = computed(() => llmModelOptions.value);
 const reviewBranchOptions = computed<ReviewBranchOption[]>(() => {
-  const selected = new Set(projectForm.reviewBranches);
+  const selected = new Set([...projectForm.reviewBranches, ...projectForm.excludedReviewBranches]);
   const remoteNames = new Set(gitlabBranchOptions.value.map((item) => item.name));
   const options: ReviewBranchOption[] = gitlabBranchOptions.value.map((item) => ({ ...item, missing: false }));
   selected.forEach((name) => {
@@ -568,6 +594,16 @@ const normalizeText = (value: string | null | undefined) => typeof value === "st
 const normalizeUserIds = (value: number[] | undefined | null) => Array.from(new Set((value || []).filter((item) => typeof item === "number" && Number.isFinite(item))));
 const parseBranches = (value: string | null | undefined) => Array.from(new Set((value || "").split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean)));
 const serializeBranches = (value: string[]) => Array.from(new Set(value.map((item) => item.trim()).filter(Boolean))).join(",");
+const removeOverlappingBranches = (value: string[], other: string[]) => {
+  const otherBranches = new Set(other);
+  return value.filter((branch) => !otherBranches.has(branch));
+};
+const handleReviewBranchesChange = (value: string[]) => {
+  projectForm.reviewBranches = removeOverlappingBranches(value, projectForm.excludedReviewBranches);
+};
+const handleExcludedReviewBranchesChange = (value: string[]) => {
+  projectForm.excludedReviewBranches = removeOverlappingBranches(value, projectForm.reviewBranches);
+};
 const buildCustomReviewSummary = (result: ProjectCustomReviewBatchResponse) => {
   const parts = [
     `batch #${result.batchId}`,
@@ -655,7 +691,7 @@ const handleSearch = async () => { pagination.pageNo = 1; applyFilters(); await 
 const resetFilters = async () => { queryForm.projectName = ""; queryForm.gitlabProjectUrl = ""; queryForm.aiReviewEnabled = undefined; queryForm.wecomNotifyEnabled = undefined; pagination.pageNo = 1; applyFilters(); await loadProjects(); };
 const handleTemplateSearch = async () => { templatePagination.pageNo = 1; applyTemplateFilters(); await loadTemplates(); };
 const resetTemplateFilters = async () => { templateQueryForm.templateName = ""; templatePagination.pageNo = 1; applyTemplateFilters(); await loadTemplates(); };
-const resetProjectForm = () => { projectForm.id = undefined; projectForm.projectName = ""; projectForm.sourcePlatform = "gitlab"; projectForm.gitlabProjectUrl = ""; projectForm.gitlabWebhookToken = ""; projectForm.reviewBranches = []; gitlabBranchOptions.value = []; projectForm.ownerUserId = null; projectForm.templateId = null; projectForm.supportedFileExtensions = ""; projectForm.memberUserIds = []; projectForm.llmModelId = null; projectForm.aiReviewEnabled = true; projectForm.reviewContextEnabled = true; projectForm.gitlabNoteEnabled = true; projectForm.wecomNotifyEnabled = false; projectForm.wecomWebhookUrl = ""; projectForm.promptContent = ""; projectForm.active = true; };
+const resetProjectForm = () => { projectForm.id = undefined; projectForm.projectName = ""; projectForm.sourcePlatform = "gitlab"; projectForm.gitlabProjectUrl = ""; projectForm.gitlabWebhookToken = ""; projectForm.reviewBranches = []; projectForm.excludedReviewBranches = []; gitlabBranchOptions.value = []; projectForm.ownerUserId = null; projectForm.templateId = null; projectForm.supportedFileExtensions = ""; projectForm.memberUserIds = []; projectForm.llmModelId = null; projectForm.aiReviewEnabled = true; projectForm.reviewContextEnabled = true; projectForm.gitlabNoteEnabled = true; projectForm.wecomNotifyEnabled = false; projectForm.wecomWebhookUrl = ""; projectForm.promptContent = ""; projectForm.active = true; };
 const resetCustomReviewForm = () => {
   customReviewForm.projectId = undefined;
   customReviewForm.projectName = "";
@@ -678,7 +714,7 @@ const openProjectDialog = async (mode: "edit" | "view", row: ProjectItem) => {
     const [detailResponse, usersResponse, memberResponse] = await Promise.all([fetchProjectDetail(row.id), fetchUsers({ pageNo: 1, pageSize: 500, status: "ENABLE" }), fetchProjectUsers(row.id), loadProjectLlmModels(row.id), loadTemplateOptions()]);
     const detail = detailResponse.data.data; const members = memberResponse.data.data?.users || [];
     selectableUsers.value = (usersResponse.data.data?.records || []).filter((item: ProjectMemberOption) => item.status === "ENABLE" && item.role !== "ADMIN").map((item: ProjectMemberOption) => ({ id: item.id, displayName: item.displayName || "", username: item.username || "", role: item.role || "", status: item.status || "" }));
-    projectForm.id = detail.id; projectForm.projectName = detail.projectName || ""; projectForm.sourcePlatform = detail.sourcePlatform || "gitlab"; projectForm.gitlabProjectUrl = detail.gitlabProjectUrl || ""; projectForm.gitlabWebhookToken = detail.gitlabWebhookToken || ""; projectForm.reviewBranches = parseBranches(detail.reviewBranches); projectForm.ownerUserId = detail.ownerUserId ?? null; projectForm.templateId = detail.templateId ?? null; projectForm.supportedFileExtensions = detail.supportedFileExtensions || ""; projectForm.memberUserIds = normalizeUserIds(members.map((item: ProjectMemberOption) => item.id)); projectForm.llmModelId = detail.llmModelId ?? null; projectForm.aiReviewEnabled = Boolean(detail.aiReviewEnabled); projectForm.reviewContextEnabled = detail.reviewContextEnabled !== false; projectForm.gitlabNoteEnabled = Boolean(detail.gitlabNoteEnabled); projectForm.wecomNotifyEnabled = Boolean(detail.wecomNotifyEnabled); projectForm.wecomWebhookUrl = detail.wecomWebhookUrl || ""; projectForm.promptContent = detail.promptContent || ""; projectForm.active = detail.active !== false;
+    projectForm.id = detail.id; projectForm.projectName = detail.projectName || ""; projectForm.sourcePlatform = detail.sourcePlatform || "gitlab"; projectForm.gitlabProjectUrl = detail.gitlabProjectUrl || ""; projectForm.gitlabWebhookToken = detail.gitlabWebhookToken || ""; projectForm.reviewBranches = parseBranches(detail.reviewBranches); projectForm.excludedReviewBranches = parseBranches(detail.excludedReviewBranches); projectForm.ownerUserId = detail.ownerUserId ?? null; projectForm.templateId = detail.templateId ?? null; projectForm.supportedFileExtensions = detail.supportedFileExtensions || ""; projectForm.memberUserIds = normalizeUserIds(members.map((item: ProjectMemberOption) => item.id)); projectForm.llmModelId = detail.llmModelId ?? null; projectForm.aiReviewEnabled = Boolean(detail.aiReviewEnabled); projectForm.reviewContextEnabled = detail.reviewContextEnabled !== false; projectForm.gitlabNoteEnabled = Boolean(detail.gitlabNoteEnabled); projectForm.wecomNotifyEnabled = Boolean(detail.wecomNotifyEnabled); projectForm.wecomWebhookUrl = detail.wecomWebhookUrl || ""; projectForm.promptContent = detail.promptContent || ""; projectForm.active = detail.active !== false;
     if (projectForm.ownerUserId && !projectForm.memberUserIds.includes(projectForm.ownerUserId)) projectForm.memberUserIds = [...projectForm.memberUserIds, projectForm.ownerUserId];
     await loadGitLabBranchOptions(false);
   } catch (error) { dialogVisible.value = false; ElMessage.error(texts.loadProjectDetailFail); }
@@ -689,7 +725,8 @@ const openViewDialog = async (row: ProjectItem) => { await openProjectDialog("vi
 const openCustomReviewDialog = (row: ProjectItem) => {
   if (!canCustomReviewProject(row)) return;
   resetCustomReviewForm();
-  const reviewBranches = parseBranches(row.reviewBranches);
+  const excludedReviewBranches = new Set(parseBranches(row.excludedReviewBranches));
+  const reviewBranches = parseBranches(row.reviewBranches).filter((branch) => !excludedReviewBranches.has(branch));
   customReviewForm.projectId = row.id;
   customReviewForm.projectName = row.projectName || "";
   customReviewForm.reviewBranchOptions = reviewBranches;
@@ -729,7 +766,7 @@ const openEditTemplateDialog = async (row: ProjectTemplateItem) => {
 };
 const handleOwnerChange = (value: number | null | undefined) => { if (!value) { projectForm.ownerUserId = null; return; } if (!projectForm.memberUserIds.includes(value)) projectForm.memberUserIds = [...projectForm.memberUserIds, value]; };
 const handleMemberChange = (value: number[]) => { let nextValues = normalizeUserIds(value); if (showCreatorHint.value && currentUserId.value && !nextValues.includes(currentUserId.value)) nextValues = [...nextValues, currentUserId.value]; projectForm.memberUserIds = nextValues; if (projectForm.ownerUserId && !nextValues.includes(projectForm.ownerUserId)) projectForm.ownerUserId = null; ensureCreatorDefaults(); };
-const buildPayload = (): ProjectUpsertPayload => ({ projectName: projectForm.projectName.trim(), sourcePlatform: projectForm.sourcePlatform || "gitlab", gitlabProjectUrl: projectForm.gitlabProjectUrl.trim(), gitlabWebhookToken: normalizeText(projectForm.gitlabWebhookToken), reviewBranches: serializeBranches(projectForm.reviewBranches), ownerUserId: dialogMode.value === "edit" || authStore.isAdmin ? projectForm.ownerUserId ?? null : undefined, templateId: projectForm.templateId ?? null, supportedFileExtensions: normalizeText(projectForm.supportedFileExtensions), memberUserIds: normalizeUserIds(projectForm.memberUserIds), llmModelId: projectForm.llmModelId ?? null, aiReviewEnabled: projectForm.aiReviewEnabled, reviewContextEnabled: projectForm.reviewContextEnabled, gitlabNoteEnabled: projectForm.gitlabNoteEnabled, wecomNotifyEnabled: projectForm.wecomNotifyEnabled, wecomWebhookUrl: normalizeText(projectForm.wecomWebhookUrl), promptContent: projectForm.promptContent, active: projectForm.active });
+const buildPayload = (): ProjectUpsertPayload => ({ projectName: projectForm.projectName.trim(), sourcePlatform: projectForm.sourcePlatform || "gitlab", gitlabProjectUrl: projectForm.gitlabProjectUrl.trim(), gitlabWebhookToken: normalizeText(projectForm.gitlabWebhookToken), reviewBranches: serializeBranches(projectForm.reviewBranches), excludedReviewBranches: serializeBranches(removeOverlappingBranches(projectForm.excludedReviewBranches, projectForm.reviewBranches)), ownerUserId: dialogMode.value === "edit" || authStore.isAdmin ? projectForm.ownerUserId ?? null : undefined, templateId: projectForm.templateId ?? null, supportedFileExtensions: normalizeText(projectForm.supportedFileExtensions), memberUserIds: normalizeUserIds(projectForm.memberUserIds), llmModelId: projectForm.llmModelId ?? null, aiReviewEnabled: projectForm.aiReviewEnabled, reviewContextEnabled: projectForm.reviewContextEnabled, gitlabNoteEnabled: projectForm.gitlabNoteEnabled, wecomNotifyEnabled: projectForm.wecomNotifyEnabled, wecomWebhookUrl: normalizeText(projectForm.wecomWebhookUrl), promptContent: projectForm.promptContent, active: projectForm.active });
 const buildTemplatePayload = (): ProjectTemplateUpsertPayload => ({ templateName: templateForm.templateName.trim(), templateDesc: normalizeText(templateForm.templateDesc), fileExtensions: normalizeText(templateForm.fileExtensions), baseReviewPrompt: normalizeText(templateForm.baseReviewPrompt) });
 const buildCustomReviewPayload = (): ProjectCustomReviewBatchPayload => {
   const dateRange = customReviewForm.dateRange;

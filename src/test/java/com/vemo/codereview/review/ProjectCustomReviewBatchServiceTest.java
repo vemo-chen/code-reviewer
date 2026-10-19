@@ -16,6 +16,7 @@ import com.vemo.codereview.auth.service.CurrentUserService;
 import com.vemo.codereview.dashboard.entity.ProjectProfileEntity;
 import com.vemo.codereview.dashboard.mapper.ProjectProfileMapper;
 import com.vemo.codereview.platform.gitlab.model.GitLabCommitPayload;
+import com.vemo.codereview.platform.gitlab.model.GitLabBranchPayload;
 import com.vemo.codereview.platform.gitlab.service.GitLabReviewTargetService;
 import com.vemo.codereview.project.model.ProjectCustomReviewBatchRequest;
 import com.vemo.codereview.review.entity.CodeReviewBatchEntity;
@@ -285,6 +286,39 @@ class ProjectCustomReviewBatchServiceTest {
             return;
         }
         fail("Expected custom review branch validation failure");
+    }
+
+    @Test
+    void shouldExcludeBranchesWhenConfiguredToReviewAllBranches() {
+        ProjectProfileEntity project = insertProject(null);
+        project.setExcludedReviewBranches("develop");
+        projectProfileMapper.updateById(project);
+
+        GitLabBranchPayload master = new GitLabBranchPayload();
+        master.setName("master");
+        GitLabBranchPayload develop = new GitLabBranchPayload();
+        develop.setName("develop");
+        when(gitLabProjectResolver.listBranches(project.getGitlabProjectUrl(), project.getGitlabWebhookToken()))
+            .thenReturn(Arrays.asList(master, develop));
+        when(gitLabReviewTargetService.listBranchCommits(
+            eq(project.getGitlabProjectUrl()), eq(project.getGitlabProjectId()), eq("master"), any(), any(),
+            eq(project.getGitlabWebhookToken())))
+            .thenReturn(new ArrayList<GitLabCommitPayload>());
+
+        ProjectCustomReviewBatchRequest request = new ProjectCustomReviewBatchRequest();
+        request.setStartTime("2026-05-01 00:00:00");
+        request.setEndTime("2026-05-09 23:59:59");
+
+        com.vemo.codereview.project.model.ProjectCustomReviewBatchResponse response =
+            projectCustomReviewBatchService.createBatch(project, request);
+
+        assertEquals("master", response.getBatchId() == null ? null : reviewBatchStoreMapper.selectById(response.getBatchId()).getBranchScope());
+        verify(gitLabReviewTargetService, times(1)).listBranchCommits(
+            eq(project.getGitlabProjectUrl()), eq(project.getGitlabProjectId()), eq("master"), any(), any(),
+            eq(project.getGitlabWebhookToken()));
+        verify(gitLabReviewTargetService, org.mockito.Mockito.never()).listBranchCommits(
+            eq(project.getGitlabProjectUrl()), eq(project.getGitlabProjectId()), eq("develop"), any(), any(),
+            eq(project.getGitlabWebhookToken()));
     }
 
     private ProjectProfileEntity insertProject(String reviewBranches) {

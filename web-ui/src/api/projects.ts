@@ -17,6 +17,7 @@ export interface ProjectUpsertPayload {
   gitlabProjectUrl: string;
   gitlabWebhookToken?: string;
   reviewBranches?: string;
+  excludedReviewBranches?: string;
   ownerUserId?: number | null;
   templateId?: number | null;
   supportedFileExtensions?: string;

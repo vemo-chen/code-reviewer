@@ -112,6 +112,8 @@ public class ProjectService {
         entity.setUpdatedAt(new Date());
         projectProfileMapper.updateById(entity);
         clearReviewBranchesIfRequested(entity, request);
+        clearPromptContentIfRequested(entity, request);
+        clearExcludedReviewBranchesIfRequested(entity, request);
         syncProjectMembers(entity.getId(), memberUserIds);
         llmModelService.requireProjectModelUsable(entity.getId(), request.getLlmModelId());
         entity.setLlmModelId(request.getLlmModelId());
@@ -243,6 +245,7 @@ public class ProjectService {
         entity.setGitlabProjectUrl(request.getGitlabProjectUrl().trim());
         entity.setGitlabWebhookToken(normalizeText(request.getGitlabWebhookToken()));
         entity.setReviewBranches(normalizeText(request.getReviewBranches()));
+        entity.setExcludedReviewBranches(normalizeText(request.getExcludedReviewBranches()));
         fillGitLabProjectInfo(entity, request.getGitlabProjectUrl(), request.getGitlabWebhookToken());
         entity.setTemplateId(request.getTemplateId());
         entity.setSupportedFileExtensions(normalizeText(request.getSupportedFileExtensions()));
@@ -264,6 +267,28 @@ public class ProjectService {
             .set(ProjectProfileEntity::getReviewBranches, null);
         projectProfileMapper.update(null, wrapper);
         entity.setReviewBranches(null);
+    }
+
+    private void clearExcludedReviewBranchesIfRequested(ProjectProfileEntity entity, ProjectUpsertRequest request) {
+        if (request.getExcludedReviewBranches() == null || StringUtils.hasText(request.getExcludedReviewBranches())) {
+            return;
+        }
+        LambdaUpdateWrapper<ProjectProfileEntity> wrapper = new LambdaUpdateWrapper<ProjectProfileEntity>()
+            .eq(ProjectProfileEntity::getId, entity.getId())
+            .set(ProjectProfileEntity::getExcludedReviewBranches, null);
+        projectProfileMapper.update(null, wrapper);
+        entity.setExcludedReviewBranches(null);
+    }
+
+    private void clearPromptContentIfRequested(ProjectProfileEntity entity, ProjectUpsertRequest request) {
+        if (request.getPromptContent() == null || StringUtils.hasText(request.getPromptContent())) {
+            return;
+        }
+        LambdaUpdateWrapper<ProjectProfileEntity> wrapper = new LambdaUpdateWrapper<ProjectProfileEntity>()
+            .eq(ProjectProfileEntity::getId, entity.getId())
+            .set(ProjectProfileEntity::getPromptContent, null);
+        projectProfileMapper.update(null, wrapper);
+        entity.setPromptContent(null);
     }
 
     private void fillGitLabProjectInfo(ProjectProfileEntity entity, String gitlabProjectUrl, String token) {
@@ -402,6 +427,7 @@ public class ProjectService {
         response.setGitlabProjectUrl(entity.getGitlabProjectUrl());
         response.setGitlabWebhookToken(entity.getGitlabWebhookToken());
         response.setReviewBranches(entity.getReviewBranches());
+        response.setExcludedReviewBranches(entity.getExcludedReviewBranches());
         response.setOwnerUserId(entity.getOwnerUserId());
         response.setTemplateId(entity.getTemplateId());
         response.setTemplateName(resolveTemplateName(entity.getTemplateId()));

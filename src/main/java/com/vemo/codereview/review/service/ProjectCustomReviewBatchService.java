@@ -9,6 +9,7 @@ import com.vemo.codereview.platform.gitlab.model.GitLabCommitPayload;
 import com.vemo.codereview.platform.gitlab.service.GitLabReviewTargetService;
 import com.vemo.codereview.project.model.ProjectCustomReviewBatchRequest;
 import com.vemo.codereview.project.model.ProjectCustomReviewBatchResponse;
+import com.vemo.codereview.project.service.ProjectBranchReviewPolicy;
 import com.vemo.codereview.project.service.GitLabProjectResolver;
 import com.vemo.codereview.review.entity.CodeReviewBatchEntity;
 import com.vemo.codereview.review.entity.CodeReviewBatchTaskRelEntity;
@@ -50,6 +51,7 @@ public class ProjectCustomReviewBatchService {
     private final ReviewStateService reviewStateService;
     private final ManualReviewEventFactory manualReviewEventFactory;
     private final CurrentUserService currentUserService;
+    private final ProjectBranchReviewPolicy projectBranchReviewPolicy;
 
     public ProjectCustomReviewBatchService(
         GitLabReviewTargetService gitLabReviewTargetService,
@@ -61,7 +63,8 @@ public class ProjectCustomReviewBatchService {
         ReviewTaskManualRetryService reviewTaskManualRetryService,
         ReviewStateService reviewStateService,
         ManualReviewEventFactory manualReviewEventFactory,
-        CurrentUserService currentUserService) {
+        CurrentUserService currentUserService,
+        ProjectBranchReviewPolicy projectBranchReviewPolicy) {
         this.gitLabReviewTargetService = gitLabReviewTargetService;
         this.gitLabProjectResolver = gitLabProjectResolver;
         this.codeReviewTaskMapper = codeReviewTaskMapper;
@@ -72,6 +75,7 @@ public class ProjectCustomReviewBatchService {
         this.reviewStateService = reviewStateService;
         this.manualReviewEventFactory = manualReviewEventFactory;
         this.currentUserService = currentUserService;
+        this.projectBranchReviewPolicy = projectBranchReviewPolicy;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -238,37 +242,24 @@ public class ProjectCustomReviewBatchService {
     }
 
     private List<String> resolveBranches(ProjectProfileEntity project, ParsedRequest parsedRequest) {
-        LinkedHashSet<String> configuredBranches = parseBranches(project.getReviewBranches());
-        if (!configuredBranches.isEmpty()) {
-            if (parsedRequest.requestedBranches.isEmpty()) {
-                return new ArrayList<String>(configuredBranches);
-            }
-            List<String> effectiveBranches = new ArrayList<String>();
-            for (String branch : parsedRequest.requestedBranches) {
-                if (!configuredBranches.contains(branch)) {
-                    throw new DomainException("CUSTOM_REVIEW_BRANCH_SCOPE_INVALID", "Custom review branch scope is invalid");
+        List<String> availableBranches = Collections.emptyList();
+        if (parsedRequest.requestedBranches.isEmpty()
+            && projectBranchReviewPolicy.parseBranches(project.getReviewBranches()).isEmpty()) {
+            List<GitLabBranchPayload> branches = gitLabProjectResolver.listBranches(
+                project.getGitlabProjectUrl(),
+                project.getGitlabWebhookToken()
+            );
+            if (branches != null && !branches.isEmpty()) {
+                availableBranches = new ArrayList<String>();
+                for (GitLabBranchPayload branch : branches) {
+                    if (branch != null && StringUtils.hasText(branch.getName())) {
+                        availableBranches.add(branch.getName().trim());
+                    }
                 }
-                effectiveBranches.add(branch);
-            }
-            return effectiveBranches;
-        }
-        if (!parsedRequest.requestedBranches.isEmpty()) {
-            return new ArrayList<String>(parsedRequest.requestedBranches);
-        }
-        List<GitLabBranchPayload> branches = gitLabProjectResolver.listBranches(
-            project.getGitlabProjectUrl(),
-            project.getGitlabWebhookToken()
-        );
-        if (branches == null || branches.isEmpty()) {
-            return Collections.emptyList();
-        }
-        LinkedHashSet<String> names = new LinkedHashSet<String>();
-        for (GitLabBranchPayload branch : branches) {
-            if (branch != null && StringUtils.hasText(branch.getName())) {
-                names.add(branch.getName().trim());
             }
         }
-        return new ArrayList<String>(names);
+        return projectBranchReviewPolicy.resolveBranches(
+            project, new ArrayList<String>(parsedRequest.requestedBranches), availableBranches);
     }
 
     private LinkedHashMap<String, CommitCandidate> loadCommitCandidates(
@@ -372,20 +363,6 @@ public class ProjectCustomReviewBatchService {
         rel.setCreatedAt(now);
         rel.setUpdatedAt(now);
         codeReviewBatchTaskRelMapper.insert(rel);
-    }
-
-    private LinkedHashSet<String> parseBranches(String reviewBranches) {
-        LinkedHashSet<String> branches = new LinkedHashSet<String>();
-        if (!StringUtils.hasText(reviewBranches)) {
-            return branches;
-        }
-        String[] tokens = reviewBranches.split("[,;\\s]+");
-        for (String token : tokens) {
-            if (StringUtils.hasText(token)) {
-                branches.add(token.trim());
-            }
-        }
-        return branches;
     }
 
     private LinkedHashSet<String> normalizeRequestedBranches(List<String> reviewBranches) {

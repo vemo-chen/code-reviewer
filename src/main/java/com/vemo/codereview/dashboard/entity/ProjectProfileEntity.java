@@ -21,6 +21,7 @@ public class ProjectProfileEntity {
     private String gitlabProjectUrl;
     private String gitlabWebhookToken;
     private String reviewBranches;
+    private String excludedReviewBranches;
     private Long ownerUserId;
     private Long templateId;
     private String supportedFileExtensions;

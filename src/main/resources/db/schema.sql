@@ -234,6 +234,7 @@ CREATE TABLE IF NOT EXISTS project_profile (
     gitlab_project_url VARCHAR(512),
     gitlab_webhook_token VARCHAR(255),
     review_branches VARCHAR(2000),
+    excluded_review_branches VARCHAR(2000),
     owner_user_id BIGINT,
     template_id BIGINT,
     supported_file_extensions VARCHAR(1000),

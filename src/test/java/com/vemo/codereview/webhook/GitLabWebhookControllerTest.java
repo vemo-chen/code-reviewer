@@ -320,6 +320,39 @@ class GitLabWebhookControllerTest {
         assertEquals(project.getId(), event.getProjectId());
     }
 
+    @Test
+    void shouldIgnoreWebhookForExcludedBranchWhenAllBranchesAreIncluded() throws Exception {
+        projectProfileMapper.delete(new QueryWrapper<ProjectProfileEntity>());
+        ProjectProfileEntity project = insertProject(1007L, true, true, null);
+        project.setExcludedReviewBranches("feature/review");
+        projectProfileMapper.updateById(project);
+        String payload = "{"
+            + "\"object_kind\":\"push\","
+            + "\"event_type\":\"push\","
+            + "\"user_name\":\"alice\","
+            + "\"user_username\":\"alice\","
+            + "\"ref\":\"refs/heads/feature/review\","
+            + "\"before\":\"111111111111\","
+            + "\"after\":\"after-excluded-branch\","
+            + "\"project\":{\"id\":1007,\"name\":\"code-reviewer\"},"
+            + "\"commits\":[{\"id\":\"excluded-commit\",\"message\":\"change\",\"title\":\"change\"}]"
+            + "}";
+
+        mockMvc.perform(post("/api/webhooks/gitlab")
+                .header("X-Gitlab-Token", "test-gitlab-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+
+        CodeReviewEventEntity event = codeReviewEventMapper.selectOne(
+            new QueryWrapper<CodeReviewEventEntity>().eq("project_id", project.getId()));
+        assertNotNull(event);
+        assertEquals("IGNORED", event.getStatus());
+        assertEquals(Long.valueOf(0L), codeReviewTaskMapper.selectCount(new QueryWrapper<CodeReviewTaskEntity>()));
+        assertEquals(project.getId(), event.getProjectId());
+    }
+
     private ProjectProfileEntity insertProject(Long gitlabProjectId, boolean active, boolean aiReviewEnabled) {
         return insertProject(gitlabProjectId, active, aiReviewEnabled, null);
     }

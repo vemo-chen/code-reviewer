@@ -1,6 +1,7 @@
 package com.vemo.codereview.project;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -164,6 +165,70 @@ class ProjectControllerTest {
             .andExpect(jsonPath("$.data").value("deleted"));
 
         assertEquals(Long.valueOf(0L), projectProfileMapper.selectCount(null));
+    }
+
+    @Test
+    void shouldClearProjectPromptWhenUpdatedWithEmptyValue() throws Exception {
+        String createPayload = "{"
+            + "\"projectName\":\"MAS Core\","
+            + "\"gitlabProjectUrl\":\"http://gitlab.example.com/group/mas-core\","
+            + "\"gitlabWebhookToken\":\"project-token\","
+            + "\"ownerUserId\":2,"
+            + "\"memberUserIds\":[2],"
+            + "\"aiReviewEnabled\":false,"
+            + "\"promptContent\":\"Review this project using team rules\","
+            + "\"active\":true"
+            + "}";
+
+        mockMvc.perform(post("/api/projects")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", adminToken)
+                .content(createPayload))
+            .andExpect(status().isOk());
+
+        Long projectId = loadSingleProjectId();
+        String updatePayload = "{"
+            + "\"projectName\":\"MAS Core\","
+            + "\"gitlabProjectUrl\":\"http://gitlab.example.com/group/mas-core\","
+            + "\"gitlabWebhookToken\":\"project-token\","
+            + "\"ownerUserId\":2,"
+            + "\"memberUserIds\":[2],"
+            + "\"aiReviewEnabled\":false,"
+            + "\"promptContent\":\"\","
+            + "\"active\":true"
+            + "}";
+
+        mockMvc.perform(put("/api/projects/" + projectId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", adminToken)
+                .content(updatePayload))
+            .andExpect(status().isOk());
+
+        assertNull(projectProfileMapper.selectById(projectId).getPromptContent());
+    }
+
+    @Test
+    void shouldPersistExcludedReviewBranches() throws Exception {
+        String createPayload = "{"
+            + "\"projectName\":\"MAS Core\","
+            + "\"gitlabProjectUrl\":\"http://gitlab.example.com/group/mas-core\","
+            + "\"gitlabWebhookToken\":\"project-token\","
+            + "\"ownerUserId\":2,"
+            + "\"memberUserIds\":[2],"
+            + "\"aiReviewEnabled\":false,"
+            + "\"excludedReviewBranches\":\"develop,test\","
+            + "\"active\":true"
+            + "}";
+
+        mockMvc.perform(post("/api/projects")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", adminToken)
+                .content(createPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.excludedReviewBranches").value("develop,test"));
+
+        Long projectId = loadSingleProjectId();
+        assertEquals("develop,test", projectProfileMapper.selectById(projectId).getExcludedReviewBranches());
     }
 
     @Test

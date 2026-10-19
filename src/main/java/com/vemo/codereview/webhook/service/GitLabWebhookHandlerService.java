@@ -6,6 +6,7 @@ import com.vemo.codereview.common.service.IdempotencyService;
 import com.vemo.codereview.dashboard.entity.ProjectProfileEntity;
 import com.vemo.codereview.platform.gitlab.service.GitLabCommentPublisher;
 import com.vemo.codereview.project.service.ProjectConfigService;
+import com.vemo.codereview.project.service.ProjectBranchReviewPolicy;
 import com.vemo.codereview.review.entity.CodeReviewEventEntity;
 import com.vemo.codereview.review.entity.CodeReviewResultEntity;
 import com.vemo.codereview.review.entity.CodeReviewTaskEntity;
@@ -22,8 +23,6 @@ import com.vemo.codereview.webhook.model.StandardReviewEvent;
 import com.vemo.codereview.webhook.support.GitLabWebhookEventNormalizer;
 import java.util.Date;
 import java.util.List;
-import java.util.LinkedHashSet;
-import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -44,6 +43,7 @@ public class GitLabWebhookHandlerService {
     private final MergeRequestEventService mergeRequestEventService;
     private final MergePushCorrelationService mergePushCorrelationService;
     private final GitLabCommentPublisher gitLabCommentPublisher;
+    private final ProjectBranchReviewPolicy projectBranchReviewPolicy;
 
     public GitLabWebhookHandlerService(
         GitLabWebhookEventNormalizer gitLabWebhookEventNormalizer,
@@ -55,7 +55,8 @@ public class GitLabWebhookHandlerService {
         ProjectConfigService projectConfigService,
         MergeRequestEventService mergeRequestEventService,
         MergePushCorrelationService mergePushCorrelationService,
-        GitLabCommentPublisher gitLabCommentPublisher) {
+        GitLabCommentPublisher gitLabCommentPublisher,
+        ProjectBranchReviewPolicy projectBranchReviewPolicy) {
         this.gitLabWebhookEventNormalizer = gitLabWebhookEventNormalizer;
         this.idempotencyService = idempotencyService;
         this.codeReviewEventMapper = codeReviewEventMapper;
@@ -66,6 +67,7 @@ public class GitLabWebhookHandlerService {
         this.mergeRequestEventService = mergeRequestEventService;
         this.mergePushCorrelationService = mergePushCorrelationService;
         this.gitLabCommentPublisher = gitLabCommentPublisher;
+        this.projectBranchReviewPolicy = projectBranchReviewPolicy;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -87,7 +89,7 @@ public class GitLabWebhookHandlerService {
             ProjectProfileEntity project = resolveManagedProject(event, startNs);
             if (project == null || !Boolean.TRUE.equals(project.getActive())
                 || !Boolean.TRUE.equals(project.getAiReviewEnabled())
-                || !isBranchReviewAllowed(project, event.getSubmitBranch())) {
+                || !projectBranchReviewPolicy.isAllowed(project, event.getSubmitBranch())) {
                 createIgnoredEvent(event);
                 return;
             }
@@ -156,10 +158,10 @@ public class GitLabWebhookHandlerService {
                 project.getId(), project.getActive(), project.getAiReviewEnabled(), elapsedMs(webhookStartNs));
             return;
         }
-        if (!isBranchReviewAllowed(project, event.getSubmitBranch())) {
+        if (!projectBranchReviewPolicy.isAllowed(project, event.getSubmitBranch())) {
             createIgnoredEvent(event);
-            log.info("webhook ignored because branch is not configured for review. projectId={}, branch={}, reviewBranches={}, elapsedMs={}",
-                project.getId(), event.getSubmitBranch(), project.getReviewBranches(), elapsedMs(webhookStartNs));
+            log.info("webhook ignored because branch is not configured for review. projectId={}, branch={}, reviewBranches={}, excludedReviewBranches={}, elapsedMs={}",
+                project.getId(), event.getSubmitBranch(), project.getReviewBranches(), project.getExcludedReviewBranches(), elapsedMs(webhookStartNs));
             return;
         }
         createReviewTask(event, taskType, webhookStartNs);
@@ -329,28 +331,6 @@ public class GitLabWebhookHandlerService {
 
     private boolean isZeroSha(String sha) {
         return StringUtils.hasText(sha) && sha.trim().matches("0+");
-    }
-
-    private boolean isBranchReviewAllowed(ProjectProfileEntity project, String submitBranch) {
-        Set<String> reviewBranches = parseReviewBranches(project == null ? null : project.getReviewBranches());
-        if (reviewBranches.isEmpty()) {
-            return true;
-        }
-        return StringUtils.hasText(submitBranch) && reviewBranches.contains(submitBranch.trim());
-    }
-
-    private Set<String> parseReviewBranches(String reviewBranches) {
-        Set<String> result = new LinkedHashSet<String>();
-        if (!StringUtils.hasText(reviewBranches)) {
-            return result;
-        }
-        String[] branches = reviewBranches.split("[,;\\s]+");
-        for (String branch : branches) {
-            if (StringUtils.hasText(branch)) {
-                result.add(branch.trim());
-            }
-        }
-        return result;
     }
 
     private long elapsedMs(long startNs) {
