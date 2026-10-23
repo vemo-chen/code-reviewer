@@ -208,6 +208,46 @@ class ProjectControllerTest {
     }
 
     @Test
+    void shouldClearSupportedFileExtensionsWhenUpdatedWithEmptyValue() throws Exception {
+        String createPayload = "{"
+            + "\"projectName\":\"MAS Core\","
+            + "\"gitlabProjectUrl\":\"http://gitlab.example.com/group/mas-core\","
+            + "\"gitlabWebhookToken\":\"project-token\","
+            + "\"ownerUserId\":2,"
+            + "\"memberUserIds\":[2],"
+            + "\"aiReviewEnabled\":false,"
+            + "\"supportedFileExtensions\":\".java,.xml\","
+            + "\"active\":true"
+            + "}";
+
+        mockMvc.perform(post("/api/projects")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", adminToken)
+                .content(createPayload))
+            .andExpect(status().isOk());
+
+        Long projectId = loadSingleProjectId();
+        String updatePayload = "{"
+            + "\"projectName\":\"MAS Core\","
+            + "\"gitlabProjectUrl\":\"http://gitlab.example.com/group/mas-core\","
+            + "\"gitlabWebhookToken\":\"project-token\","
+            + "\"ownerUserId\":2,"
+            + "\"memberUserIds\":[2],"
+            + "\"aiReviewEnabled\":false,"
+            + "\"supportedFileExtensions\":\"\","
+            + "\"active\":true"
+            + "}";
+
+        mockMvc.perform(put("/api/projects/" + projectId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", adminToken)
+                .content(updatePayload))
+            .andExpect(status().isOk());
+
+        assertNull(projectProfileMapper.selectById(projectId).getSupportedFileExtensions());
+    }
+
+    @Test
     void shouldPersistExcludedReviewBranches() throws Exception {
         String createPayload = "{"
             + "\"projectName\":\"MAS Core\","

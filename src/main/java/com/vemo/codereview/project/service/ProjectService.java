@@ -114,6 +114,7 @@ public class ProjectService {
         clearReviewBranchesIfRequested(entity, request);
         clearPromptContentIfRequested(entity, request);
         clearExcludedReviewBranchesIfRequested(entity, request);
+        clearSupportedFileExtensionsIfRequested(entity, request);
         syncProjectMembers(entity.getId(), memberUserIds);
         llmModelService.requireProjectModelUsable(entity.getId(), request.getLlmModelId());
         entity.setLlmModelId(request.getLlmModelId());
@@ -289,6 +290,17 @@ public class ProjectService {
             .set(ProjectProfileEntity::getPromptContent, null);
         projectProfileMapper.update(null, wrapper);
         entity.setPromptContent(null);
+    }
+
+    private void clearSupportedFileExtensionsIfRequested(ProjectProfileEntity entity, ProjectUpsertRequest request) {
+        if (request.getSupportedFileExtensions() == null || StringUtils.hasText(request.getSupportedFileExtensions())) {
+            return;
+        }
+        LambdaUpdateWrapper<ProjectProfileEntity> wrapper = new LambdaUpdateWrapper<ProjectProfileEntity>()
+            .eq(ProjectProfileEntity::getId, entity.getId())
+            .set(ProjectProfileEntity::getSupportedFileExtensions, null);
+        projectProfileMapper.update(null, wrapper);
+        entity.setSupportedFileExtensions(null);
     }
 
     private void fillGitLabProjectInfo(ProjectProfileEntity entity, String gitlabProjectUrl, String token) {
